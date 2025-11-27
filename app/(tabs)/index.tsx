@@ -12,15 +12,12 @@ export default function HomeScreen() {
     if (role === 'doctor') {
       // Navigate to login screen for doctors
       router.push('/login');
-    } else {
-      // Show coming soon alert for patient and clinic owner
-      Alert.alert(
-        'Coming Soon',
-        `${role === 'patient' ? 'Patient' : 'Clinic Owner'} login and registration will be available soon. Currently, only Doctor registration is available.`,
-        [
-          { text: 'OK', style: 'default' }
-        ]
-      );
+    } else if (role === 'patient') {
+      // Navigate to patient login screen
+      router.push('/patient-login');
+    } else if (role === 'clinic-owner') {
+      // Navigate to clinic owner login screen
+      router.push('/clinic-owner-login');
     }
   };
 

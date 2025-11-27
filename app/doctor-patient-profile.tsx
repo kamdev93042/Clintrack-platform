@@ -1063,8 +1063,11 @@ export default function DoctorPatientProfileScreen() {
                       height: galleryItemSize,
                     }
                   ]}
-                  onPress={() => handleOpenMediaViewer(index)}
-                  activeOpacity={0.8}
+                  onPress={() => {
+                    console.log('📸 Gallery item tapped:', index);
+                    handleOpenMediaViewer(index);
+                  }}
+                  activeOpacity={0.7}
                 >
                   {isVideo ? (
                     <View style={styles.galleryVideoContainer}>
@@ -2188,33 +2191,26 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   imageViewerContainer: {
-    width: Dimensions.get('window').width * 0.85,
-    height: Dimensions.get('window').height * 0.7,
-    maxWidth: 400,
-    maxHeight: 600,
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'transparent',
     alignSelf: 'center',
   },
   mediaViewerImage: {
-    width: '100%',
-    height: '100%',
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
     resizeMode: 'contain',
   },
   videoViewerContainer: {
-    width: Dimensions.get('window').width * 0.85,
-    height: Dimensions.get('window').height * 0.7,
-    maxWidth: 400,
-    maxHeight: 600,
-    minWidth: 200,
-    minHeight: 200,
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#000000',
     position: 'relative',
     alignSelf: 'center',
-    borderRadius: 12,
     overflow: 'hidden',
   },
   videoPlayer: {
