@@ -49,6 +49,38 @@ class ClinicOwnerService {
       };
     }
   }
+
+  // Get trends data (patient growth and uploads trend)
+  async getTrends() {
+    try {
+      const response = await ApiService.get('/clinic-owner/trends');
+      if (response && response.success && response.data) {
+        return {
+          success: true,
+          data: response.data,
+        };
+      } else {
+        return {
+          success: false,
+          message: 'Failed to get trends data',
+          data: {
+            patientGrowth: [],
+            uploadsTrend: []
+          }
+        };
+      }
+    } catch (error) {
+      console.error('[ClinicOwnerService] Error fetching trends:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to get trends data',
+        data: {
+          patientGrowth: [],
+          uploadsTrend: []
+        }
+      };
+    }
+  }
 }
 
 export default new ClinicOwnerService();

@@ -29,34 +29,35 @@ const defaultStats = {
   storageLimit: 100, // GB
 };
 
-const mockPatientGrowth = [
-  { month: 'Jan', patients: 50 },
-  { month: 'Feb', patients: 75 },
-  { month: 'Mar', patients: 100 },
-  { month: 'Apr', patients: 130 },
-  { month: 'May', patients: 160 },
-  { month: 'Jun', patients: 195 },
-  { month: 'Jul', patients: 230 },
-  { month: 'Aug', patients: 270 },
-  { month: 'Sep', patients: 310 },
-  { month: 'Oct', patients: 330 },
-  { month: 'Nov', patients: 340 },
-  { month: 'Dec', patients: 342 },
+// Default empty trends data
+const defaultPatientGrowth = [
+  { month: 'Jan', patients: 0 },
+  { month: 'Feb', patients: 0 },
+  { month: 'Mar', patients: 0 },
+  { month: 'Apr', patients: 0 },
+  { month: 'May', patients: 0 },
+  { month: 'Jun', patients: 0 },
+  { month: 'Jul', patients: 0 },
+  { month: 'Aug', patients: 0 },
+  { month: 'Sep', patients: 0 },
+  { month: 'Oct', patients: 0 },
+  { month: 'Nov', patients: 0 },
+  { month: 'Dec', patients: 0 },
 ];
 
-const mockUploadsTrend = [
-  { month: 'Jan', uploads: 30 },
-  { month: 'Feb', uploads: 50 },
-  { month: 'Mar', uploads: 70 },
-  { month: 'Apr', uploads: 90 },
-  { month: 'May', uploads: 110 },
-  { month: 'Jun', uploads: 130 },
-  { month: 'Jul', uploads: 150 },
-  { month: 'Aug', uploads: 170 },
-  { month: 'Sep', uploads: 190 },
-  { month: 'Oct', uploads: 210 },
-  { month: 'Nov', uploads: 230 },
-  { month: 'Dec', uploads: 250 },
+const defaultUploadsTrend = [
+  { month: 'Jan', uploads: 0 },
+  { month: 'Feb', uploads: 0 },
+  { month: 'Mar', uploads: 0 },
+  { month: 'Apr', uploads: 0 },
+  { month: 'May', uploads: 0 },
+  { month: 'Jun', uploads: 0 },
+  { month: 'Jul', uploads: 0 },
+  { month: 'Aug', uploads: 0 },
+  { month: 'Sep', uploads: 0 },
+  { month: 'Oct', uploads: 0 },
+  { month: 'Nov', uploads: 0 },
+  { month: 'Dec', uploads: 0 },
 ];
 
 export default function ClinicOwnerDashboardScreen() {
@@ -73,6 +74,9 @@ export default function ClinicOwnerDashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [doctors, setDoctors] = useState<any[]>([]);
   const [doctorsLoading, setDoctorsLoading] = useState(false);
+  const [patientGrowth, setPatientGrowth] = useState(defaultPatientGrowth);
+  const [uploadsTrend, setUploadsTrend] = useState(defaultUploadsTrend);
+  const [trendsLoading, setTrendsLoading] = useState(false);
 
   useEffect(() => {
     initializeAuth();
@@ -85,6 +89,7 @@ export default function ClinicOwnerDashboardScreen() {
       // Reload dashboard data when switching back to dashboard tab
       loadDashboardData();
       loadDoctors();
+      loadTrends();
     }
   }, [activeTab, searchQuery]);
 
@@ -93,6 +98,7 @@ export default function ClinicOwnerDashboardScreen() {
       await ClinicOwnerAuthService.initializeAuth();
       await loadDashboardData();
       await loadDoctors();
+      await loadTrends();
     } catch (error) {
       console.error('Failed to initialize auth:', error);
       setLoading(false);
@@ -177,6 +183,41 @@ export default function ClinicOwnerDashboardScreen() {
     }
   };
 
+  const loadTrends = async () => {
+    try {
+      setTrendsLoading(true);
+      const result = await ClinicOwnerService.getTrends();
+      if (result.success && result.data) {
+        // Update patient growth data - ensure it's always an array
+        if (result.data.patientGrowth && Array.isArray(result.data.patientGrowth) && result.data.patientGrowth.length > 0) {
+          setPatientGrowth(result.data.patientGrowth);
+        } else {
+          // Keep default if no data
+          setPatientGrowth(defaultPatientGrowth);
+        }
+        // Update uploads trend data - ensure it's always an array
+        if (result.data.uploadsTrend && Array.isArray(result.data.uploadsTrend) && result.data.uploadsTrend.length > 0) {
+          setUploadsTrend(result.data.uploadsTrend);
+        } else {
+          // Keep default if no data
+          setUploadsTrend(defaultUploadsTrend);
+        }
+      } else {
+        console.error('Failed to load trends:', result.message);
+        // Set defaults on error
+        setPatientGrowth(defaultPatientGrowth);
+        setUploadsTrend(defaultUploadsTrend);
+      }
+    } catch (error) {
+      console.error('Error loading trends:', error);
+      // Set defaults on error
+      setPatientGrowth(defaultPatientGrowth);
+      setUploadsTrend(defaultUploadsTrend);
+    } finally {
+      setTrendsLoading(false);
+    }
+  };
+
   const loadPatients = async () => {
     try {
       setPatientsLoading(true);
@@ -231,18 +272,30 @@ export default function ClinicOwnerDashboardScreen() {
 
   // Simple bar chart component
   const BarChart = ({ data, maxValue, color, valueKey }: { data: any[], maxValue: number, color: string, valueKey: string }) => {
+    if (!data || data.length === 0) {
+      return (
+        <View style={styles.chartContainer}>
+          <Text style={styles.chartLoadingText}>No data available</Text>
+        </View>
+      );
+    }
+
+    const safeMaxValue = maxValue > 0 ? maxValue : 1;
+
     return (
       <View style={styles.chartContainer}>
         <View style={styles.chartBars}>
           {data.map((item, index) => {
+            if (!item) return null;
             const value = item[valueKey] || item.value || 0;
-            const height = Math.max((value / maxValue) * 120, 4); // Minimum height of 4 for visibility
+            const height = Math.max((value / safeMaxValue) * 120, 4); // Minimum height of 4 for visibility
+            const monthLabel = item.month ? (item.month.substring ? item.month.substring(0, 3) : item.month) : '';
             return (
               <View key={index} style={styles.barWrapper}>
                 <View style={styles.barContainer}>
                   <View style={[styles.bar, { height, backgroundColor: color }]} />
                 </View>
-                <Text style={styles.chartLabel}>{item.month.substring(0, 3)}</Text>
+                <Text style={styles.chartLabel}>{monthLabel}</Text>
               </View>
             );
           })}
@@ -251,9 +304,27 @@ export default function ClinicOwnerDashboardScreen() {
     );
   };
 
-  // Calculate max value for charts
-  const maxPatients = Math.max(...mockPatientGrowth.map(d => d.patients));
-  const maxUploads = Math.max(...mockUploadsTrend.map(d => d.uploads));
+  // Calculate max value for charts with safety checks
+  const calculateMaxValue = (data: any[], key: string): number => {
+    if (!data || !Array.isArray(data) || data.length === 0) {
+      return 1;
+    }
+    try {
+      const values = data
+        .filter(d => d && typeof d === 'object')
+        .map(d => {
+          const value = d[key];
+          return typeof value === 'number' && !isNaN(value) ? value : 0;
+        });
+      return values.length > 0 ? Math.max(...values, 1) : 1;
+    } catch (error) {
+      console.error('Error calculating max value:', error);
+      return 1;
+    }
+  };
+
+  const maxPatients = calculateMaxValue(patientGrowth, 'patients');
+  const maxUploads = calculateMaxValue(uploadsTrend, 'uploads');
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -263,6 +334,7 @@ export default function ClinicOwnerDashboardScreen() {
         await loadPatients();
       } else if (activeTab === 'dashboard') {
         await loadDoctors();
+        await loadTrends();
       }
     } finally {
       setRefreshing(false);
@@ -317,7 +389,14 @@ export default function ClinicOwnerDashboardScreen() {
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>Patient Growth Trend</Text>
         <View style={styles.chartCard}>
-          <BarChart data={mockPatientGrowth} maxValue={maxPatients} color="#10B981" valueKey="patients" />
+          {trendsLoading ? (
+            <View style={styles.chartLoadingContainer}>
+              <ActivityIndicator size="small" color="#10B981" />
+              <Text style={styles.chartLoadingText}>Loading trend data...</Text>
+            </View>
+          ) : (
+            <BarChart data={patientGrowth} maxValue={maxPatients} color="#10B981" valueKey="patients" />
+          )}
         </View>
       </View>
 
@@ -325,7 +404,14 @@ export default function ClinicOwnerDashboardScreen() {
       <View style={styles.chartSection}>
         <Text style={styles.sectionTitle}>Uploads Trend</Text>
         <View style={styles.chartCard}>
-          <BarChart data={mockUploadsTrend} maxValue={maxUploads} color="#10B981" valueKey="uploads" />
+          {trendsLoading ? (
+            <View style={styles.chartLoadingContainer}>
+              <ActivityIndicator size="small" color="#10B981" />
+              <Text style={styles.chartLoadingText}>Loading trend data...</Text>
+            </View>
+          ) : (
+            <BarChart data={uploadsTrend} maxValue={maxUploads} color="#10B981" valueKey="uploads" />
+          )}
         </View>
       </View>
 
@@ -626,6 +712,16 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#6B7280',
     marginTop: 8,
+  },
+  chartLoadingContainer: {
+    height: 160,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  chartLoadingText: {
+    marginTop: 8,
+    fontSize: 12,
+    color: '#6B7280',
   },
   doctorsSection: {
     backgroundColor: 'white',

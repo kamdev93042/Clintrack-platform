@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Alert, ActivityIndicator, Image, Linking, Modal, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Alert, ActivityIndicator, Image, Linking, Modal, Dimensions, TouchableWithoutFeedback, Pressable } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { Video, ResizeMode } from 'expo-av';
 import PatientAuthService from '../services/patientAuthService';
 
 
@@ -16,6 +17,11 @@ export default function PatientDashboardScreen() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
+  const videoRef = useRef<Video>(null);
+  const [videoStatus, setVideoStatus] = useState<any>({});
+  const [isVideoPlaying, setIsVideoPlaying] = useState(false);
+  const [showPlayPauseButton, setShowPlayPauseButton] = useState(false);
+  const hideButtonTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     initializeAuth();
@@ -45,6 +51,76 @@ export default function PatientDashboardScreen() {
       setImageLoading(false);
     }
   }, [selectedImage]);
+
+  // Reset video state when video modal closes/opens
+  useEffect(() => {
+    if (selectedVideo) {
+      // When video opens, set to playing and hide button
+      setIsVideoPlaying(true);
+      setShowPlayPauseButton(false);
+    } else {
+      // When video closes, reset state
+      setIsVideoPlaying(false);
+      setShowPlayPauseButton(false);
+      if (hideButtonTimeoutRef.current) {
+        clearTimeout(hideButtonTimeoutRef.current);
+      }
+    }
+  }, [selectedVideo]);
+
+  const toggleVideoPlayPause = async () => {
+    try {
+      if (!videoRef.current) return;
+      
+      if (isVideoPlaying) {
+        // Pause video and show pause button
+        await videoRef.current.pauseAsync();
+        setIsVideoPlaying(false);
+        setShowPlayPauseButton(true);
+      } else {
+        // Play video and hide button immediately
+        await videoRef.current.playAsync();
+        setIsVideoPlaying(true);
+        setShowPlayPauseButton(false);
+      }
+    } catch (error) {
+      console.error('Error toggling video:', error);
+    }
+  };
+
+  // Format time from seconds to MM:SS or HH:MM:SS
+  const formatTime = (seconds: number): string => {
+    if (!seconds || isNaN(seconds)) return '00:00';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+      return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Get current time and duration from video status
+  const getVideoTime = () => {
+    if (videoStatus.isLoaded) {
+      const currentTime = videoStatus.positionMillis / 1000; // Convert to seconds
+      const duration = videoStatus.durationMillis / 1000; // Convert to seconds
+      return {
+        current: formatTime(currentTime),
+        total: formatTime(duration),
+        currentSeconds: currentTime,
+        totalSeconds: duration
+      };
+    }
+    return {
+      current: '00:00',
+      total: '00:00',
+      currentSeconds: 0,
+      totalSeconds: 0
+    };
+  };
 
   const initializeAuth = async () => {
     try {
@@ -485,38 +561,102 @@ export default function PatientDashboardScreen() {
         </View>
       </Modal>
 
-      {/* Video Modal */}
+      {/* Video Modal - Fullscreen Player */}
       <Modal
         visible={selectedVideo !== null}
-        transparent={true}
+        transparent={false}
         animationType="fade"
-        onRequestClose={() => setSelectedVideo(null)}
+        presentationStyle="fullScreen"
+        onRequestClose={() => {
+          if (videoRef.current) {
+            videoRef.current.pauseAsync();
+          }
+          setSelectedVideo(null);
+        }}
       >
-        <View style={styles.modalOverlay}>
+        <StatusBar hidden={true} />
+        <View style={styles.videoModalOverlay}>
           <TouchableOpacity 
-            style={styles.modalCloseButton}
-            onPress={() => setSelectedVideo(null)}
+            style={styles.videoModalCloseButton}
+            onPress={() => {
+              if (videoRef.current) {
+                videoRef.current.pauseAsync();
+              }
+              setSelectedVideo(null);
+            }}
           >
-            <Ionicons name="close" size={30} color="white" />
+            <Ionicons name="close" size={32} color="white" />
           </TouchableOpacity>
           {selectedVideo && (
-            <View style={styles.videoContainer}>
-              <Text style={styles.videoMessage}>Video Player</Text>
-              <Text style={styles.videoUrlText} numberOfLines={2}>
-                {selectedVideo}
-              </Text>
-              <TouchableOpacity
-                style={styles.openVideoButton}
-                onPress={() => {
-                  Linking.openURL(selectedVideo).catch(err => {
-                    Alert.alert('Error', 'Could not open video. Please check your connection.');
-                  });
+            <Pressable 
+              style={styles.videoPlayerContainer}
+              onPress={toggleVideoPlayPause}
+            >
+              <Video
+                ref={videoRef}
+                source={{ uri: selectedVideo }}
+                style={styles.fullscreenVideo}
+                useNativeControls={false}
+                resizeMode={ResizeMode.COVER}
+                shouldPlay={isVideoPlaying}
+                isLooping={false}
+                volume={1.0}
+                isMuted={false}
+                onError={(error: any) => {
+                  console.error('Video playback error:', error);
+                  Alert.alert('Error', 'Failed to play video. Please check your connection and try again.');
                 }}
-              >
-                <Ionicons name="play-circle" size={48} color="#6B46C1" />
-                <Text style={styles.openVideoText}>Open Video</Text>
-              </TouchableOpacity>
-            </View>
+                onLoad={() => {
+                  console.log('Video loaded successfully');
+                  // Auto-play when video loads, no button shown
+                  setIsVideoPlaying(true);
+                  setShowPlayPauseButton(false);
+                }}
+                onPlaybackStatusUpdate={(status) => {
+                  setVideoStatus(status);
+                  // Update playing state based on status
+                  if (status.isLoaded) {
+                    setIsVideoPlaying(status.isPlaying);
+                    if (status.isPlaying) {
+                      // Hide button when playing
+                      setShowPlayPauseButton(false);
+                      if (hideButtonTimeoutRef.current) {
+                        clearTimeout(hideButtonTimeoutRef.current);
+                      }
+                    } else {
+                      // Show pause button only when paused
+                      setShowPlayPauseButton(true);
+                    }
+                  }
+                }}
+              />
+              {/* Center Pause Button Overlay - Only shown when paused */}
+              {showPlayPauseButton && !isVideoPlaying && (
+                <View style={styles.centerPlayPauseButton}>
+                  <TouchableOpacity
+                    style={styles.playPauseButtonCircle}
+                    onPress={toggleVideoPlayPause}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons 
+                      name="play" 
+                      size={64} 
+                      color="white" 
+                    />
+                  </TouchableOpacity>
+                </View>
+              )}
+              {/* Bottom Video Duration Controls */}
+              {selectedVideo && videoStatus.isLoaded && (
+                <View style={styles.videoDurationContainer}>
+                  <View style={styles.videoDurationContent}>
+                    <Text style={styles.videoTimeText}>
+                      {getVideoTime().current} / {getVideoTime().total}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </Pressable>
           )}
         </View>
       </Modal>
@@ -936,35 +1076,91 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
-  videoContainer: {
-    width: Dimensions.get('window').width - 40,
-    height: Dimensions.get('window').height - 100,
+  videoModalOverlay: {
+    flex: 1,
+    backgroundColor: '#000000',
+    width: '100%',
+    height: '100%',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 20,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
-  videoMessage: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 10,
-  },
-  videoUrlText: {
-    color: 'rgba(255, 255, 255, 0.7)',
-    fontSize: 12,
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  openVideoButton: {
-    alignItems: 'center',
+  videoModalCloseButton: {
+    position: 'absolute',
+    top: 40,
+    right: 20,
+    zIndex: 100,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    borderRadius: 25,
+    padding: 12,
+    width: 50,
+    height: 50,
     justifyContent: 'center',
+    alignItems: 'center',
   },
-  openVideoText: {
+  videoPlayerContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  fullscreenVideo: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  centerPlayPauseButton: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 5,
+  },
+  playPauseButtonCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'rgba(255, 255, 255, 0.3)',
+  },
+  videoDurationContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    paddingVertical: 15,
+    paddingHorizontal: 20,
+    zIndex: 5,
+  },
+  videoDurationContent: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  videoTimeText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
-    marginTop: 10,
+    fontFamily: 'monospace',
   },
 });
