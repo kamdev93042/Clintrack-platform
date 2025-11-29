@@ -146,6 +146,9 @@ export default function PatientDashboardScreen() {
         if (result.success) {
           setPatientData(result.patient);
         }
+        
+        // Load media counts immediately so they show on dashboard
+        loadMediaCounts();
         return;
       }
       
@@ -156,11 +159,36 @@ export default function PatientDashboardScreen() {
       } else {
         Alert.alert('Error', result.message || 'Failed to load patient data');
       }
+      
+      // Load media counts immediately so they show on dashboard
+      loadMediaCounts();
     } catch (error) {
       console.error('Failed to load patient data:', error);
       Alert.alert('Error', 'Failed to load patient data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Load media counts (images and videos) for dashboard display
+  const loadMediaCounts = async () => {
+    try {
+      // Load both images and videos in parallel to get counts
+      const [imagesResult, videosResult] = await Promise.all([
+        PatientAuthService.getPatientImages(),
+        PatientAuthService.getPatientVideos()
+      ]);
+      
+      if (imagesResult.success) {
+        setImages(imagesResult.images || []);
+      }
+      
+      if (videosResult.success) {
+        setVideos(videosResult.videos || []);
+      }
+    } catch (error) {
+      console.error('Failed to load media counts:', error);
+      // Don't show alert for media count errors, just log them
     }
   };
 

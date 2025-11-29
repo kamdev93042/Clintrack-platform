@@ -32,6 +32,7 @@ export default function RootLayout() {
         <Stack.Screen name="clinic-owner-dashboard" options={{ headerShown: false }} />
         <Stack.Screen name="clinic-owner-profile" options={{ headerShown: false }} />
         <Stack.Screen name="clinic-owner-doctors" options={{ headerShown: false }} />
+        <Stack.Screen name="clinic-owner-doctor-details" options={{ headerShown: false }} />
         <Stack.Screen name="clinic-owner-add-doctor" options={{ headerShown: false }} />
         <Stack.Screen name="pricing" options={{ headerShown: false }} />
       </Stack>

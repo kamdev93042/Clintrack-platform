@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Modal, TextInput, Alert, ActivityIndicator, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import ClinicOwnerAuthService from '../services/clinicOwnerAuthService';
 import ClinicOwnerDoctorService from '../services/clinicOwnerDoctorService';
 
@@ -12,6 +12,8 @@ export default function ClinicOwnerAddDoctorScreen() {
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
   const [selectedDoctor, setSelectedDoctor] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [addingDoctorId, setAddingDoctorId] = useState<string | null>(null);
 
   useEffect(() => {
     initializeAuth();
@@ -54,6 +56,8 @@ export default function ClinicOwnerAddDoctorScreen() {
   };
 
   const handleAddDoctor = (doctor: any) => {
+    // Immediately mark as adding to disable button
+    setAddingDoctorId(doctor.id);
     setSelectedDoctor(doctor);
     setShowAddDoctorModal(true);
   };
@@ -61,6 +65,10 @@ export default function ClinicOwnerAddDoctorScreen() {
   const handleCloseAddDoctor = () => {
     setShowAddDoctorModal(false);
     setSelectedDoctor(null);
+    // Only clear addingDoctorId if doctor wasn't successfully added
+    if (selectedDoctor && !doctors.find(d => d.id === selectedDoctor.id)?.isAlreadyAdded) {
+      setAddingDoctorId(null);
+    }
   };
 
   const handleSubmitDoctor = async () => {
@@ -69,6 +77,13 @@ export default function ClinicOwnerAddDoctorScreen() {
       return;
     }
 
+    // Immediately update UI - mark doctor as added and disable button
+    setDoctors(prev => prev.map(d => 
+      d.id === selectedDoctor.id 
+        ? { ...d, isAlreadyAdded: true }
+        : d
+    ));
+
     setSubmitting(true);
     
     try {
@@ -76,22 +91,42 @@ export default function ClinicOwnerAddDoctorScreen() {
       
       if (result.success) {
         setSubmitting(false);
+        setAddingDoctorId(null); // Clear adding state
         handleCloseAddDoctor();
+        // Show success message briefly
         Alert.alert('Success', result.message || 'Doctor added successfully!', [
           {
             text: 'OK',
             onPress: () => {
-              // Remove the added doctor from the list
-              setDoctors(prev => prev.filter(d => d.id !== selectedDoctor.id));
+              // Doctor is already marked as added in the list, no need to remove
             }
           }
         ]);
       } else {
         setSubmitting(false);
-        Alert.alert('Error', result.message || 'Failed to add doctor');
+        setAddingDoctorId(null); // Clear adding state on error
+        // Revert the UI change if adding failed
+        setDoctors(prev => prev.map(d => 
+          d.id === selectedDoctor.id 
+            ? { ...d, isAlreadyAdded: false }
+            : d
+        ));
+        // Show custom error popup with the message
+        setErrorMessage(result.message || 'Failed to add doctor');
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+          setErrorMessage(null);
+        }, 5000);
       }
     } catch (error) {
       setSubmitting(false);
+      setAddingDoctorId(null); // Clear adding state on error
+      // Revert the UI change if adding failed
+      setDoctors(prev => prev.map(d => 
+        d.id === selectedDoctor.id 
+          ? { ...d, isAlreadyAdded: false }
+          : d
+      ));
       Alert.alert('Error', 'Failed to add doctor. Please try again.');
     }
   };
@@ -166,6 +201,8 @@ export default function ClinicOwnerAddDoctorScreen() {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => {
             const isAlreadyAdded = item.isAlreadyAdded || false;
+            const isAdding = addingDoctorId === item.id;
+            const isDisabled = isAlreadyAdded || isAdding;
             return (
               <View style={styles.doctorCard}>
                 <View style={styles.doctorInfo}>
@@ -185,6 +222,10 @@ export default function ClinicOwnerAddDoctorScreen() {
                     <Ionicons name="location-outline" size={14} color="#6B7280" />
                     <Text style={styles.doctorDetailText}>{item.pinCode}</Text>
                   </View>
+                  <View style={styles.doctorDetailsRow}>
+                    <Ionicons name="key-outline" size={14} color="#6B46C1" />
+                    <Text style={[styles.doctorDetailText, styles.specialIdText]}>Special ID: {item.specialId || 'N/A'}</Text>
+                  </View>
                 </View>
                 <View style={styles.rightColumn}>
                   {isAlreadyAdded && (
@@ -194,13 +235,17 @@ export default function ClinicOwnerAddDoctorScreen() {
                     </View>
                   )}
                   <TouchableOpacity 
-                    style={[styles.addButton, isAlreadyAdded && styles.addButtonDisabled]}
-                    onPress={() => !isAlreadyAdded && handleAddDoctor(item)}
-                    disabled={isAlreadyAdded}
+                    style={[styles.addButton, isDisabled && styles.addButtonDisabled]}
+                    onPress={() => !isDisabled && handleAddDoctor(item)}
+                    disabled={isDisabled}
                   >
-                    <Text style={[styles.addButtonText, isAlreadyAdded && styles.addButtonTextDisabled]}>
-                      {isAlreadyAdded ? 'Added' : 'Add'}
-                    </Text>
+                    {isAdding ? (
+                      <ActivityIndicator size="small" color="white" />
+                    ) : (
+                      <Text style={[styles.addButtonText, isDisabled && styles.addButtonTextDisabled]}>
+                        {isAlreadyAdded ? 'Added' : 'Add'}
+                      </Text>
+                    )}
                   </TouchableOpacity>
                 </View>
               </View>
@@ -248,6 +293,7 @@ export default function ClinicOwnerAddDoctorScreen() {
                     <Text style={styles.selectedDoctorText}>Email: {selectedDoctor.email}</Text>
                     <Text style={styles.selectedDoctorText}>Phone: {selectedDoctor.phoneNumber}</Text>
                     <Text style={styles.selectedDoctorText}>Pincode: {selectedDoctor.pinCode}</Text>
+                    <Text style={[styles.selectedDoctorText, styles.specialIdHighlight]}>Special ID: {selectedDoctor.specialId || 'N/A'}</Text>
                   </View>
                 )}
 
@@ -283,6 +329,30 @@ export default function ClinicOwnerAddDoctorScreen() {
                 </View>
               </View>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Error Popup Modal */}
+      <Modal
+        visible={errorMessage !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setErrorMessage(null)}
+      >
+        <View style={styles.errorPopupOverlay}>
+          <View style={styles.errorPopupContainer}>
+            <View style={styles.errorPopupHeader}>
+              <Ionicons name="alert-circle" size={32} color="#EF4444" />
+              <Text style={styles.errorPopupTitle}>Cannot Add Doctor</Text>
+            </View>
+            <Text style={styles.errorPopupMessage}>{errorMessage}</Text>
+            <TouchableOpacity 
+              style={styles.errorPopupButton}
+              onPress={() => setErrorMessage(null)}
+            >
+              <Text style={styles.errorPopupButtonText}>OK</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -436,6 +506,15 @@ const styles = StyleSheet.create({
   doctorDetailText: {
     fontSize: 13,
     color: '#6B7280',
+  },
+  specialIdText: {
+    color: '#6B46C1',
+    fontWeight: '600',
+  },
+  specialIdHighlight: {
+    color: '#6B46C1',
+    fontWeight: '600',
+    fontSize: 14,
   },
   addButton: {
     backgroundColor: '#6B46C1',
@@ -607,6 +686,58 @@ const styles = StyleSheet.create({
   },
   cancelButtonText: {
     color: '#374151',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Error Popup Styles
+  errorPopupOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorPopupContainer: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    width: '85%',
+    maxWidth: 400,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  errorPopupHeader: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  errorPopupTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#374151',
+    marginTop: 12,
+  },
+  errorPopupMessage: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  errorPopupButton: {
+    backgroundColor: '#EF4444',
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 8,
+    minWidth: 100,
+  },
+  errorPopupButtonText: {
+    color: 'white',
     fontSize: 16,
     fontWeight: '600',
   },

@@ -60,19 +60,38 @@ class ApiService {
     };
 
     try {
+      console.log('Making API request:', config.method, url);
+      console.log('Request headers:', JSON.stringify(config.headers, null, 2));
+      
       const response = await fetch(url, config);
-      const data = await response.json();
+      
+      // Check if response is JSON
+      const contentType = response.headers.get('content-type');
+      let data;
+      
+      if (contentType && contentType.includes('application/json')) {
+        data = await response.json();
+      } else {
+        const text = await response.text();
+        console.error('Non-JSON response:', text);
+        throw new Error(`Server returned non-JSON response: ${response.status} ${response.statusText}`);
+      }
 
       if (!response.ok) {
         // Create an error object with response data for better error handling
         const error = new Error(data.message || 'API request failed');
         error.response = { data, status: response.status };
+        console.error('API request failed:', response.status, data);
         throw error;
       }
 
       return data;
     } catch (error) {
       console.error('API Error:', error);
+      // If error doesn't have response, it might be a network error
+      if (!error.response) {
+        console.error('Network or parsing error:', error.message);
+      }
       throw error;
     }
   }

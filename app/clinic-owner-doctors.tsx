@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Modal, TextInput, Alert, Switch, ActivityIndicator } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import ClinicOwnerAuthService from '../services/clinicOwnerAuthService';
 import ClinicOwnerDoctorService from '../services/clinicOwnerDoctorService';
 
@@ -26,6 +26,16 @@ export default function ClinicOwnerDoctorsScreen() {
       loadDoctors();
     }
   }, [searchQuery]);
+
+  // Refresh doctors list when screen comes into focus (when navigating back)
+  useFocusEffect(
+    useCallback(() => {
+      // Reload doctors when screen is focused
+      if (!loading) {
+        loadDoctors(searchQuery);
+      }
+    }, [searchQuery])
+  );
 
   const initializeAuth = async () => {
     try {
@@ -102,37 +112,10 @@ export default function ClinicOwnerDoctorsScreen() {
     }
   };
 
-  const handleToggleStatus = async (doctorId: string, currentStatus: string) => {
-    try {
-      const newStatus = currentStatus === 'active' ? 'inactive' : 'active';
-      const result = await ClinicOwnerDoctorService.toggleDoctorStatus(doctorId, newStatus);
-      
-      if (result.success) {
-        // Reload doctors to get updated data
-        await loadDoctors();
-      } else {
-        Alert.alert('Error', result.message || 'Failed to update doctor status');
-      }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to update doctor status. Please try again.');
-    }
-  };
 
   const handleDoctorPress = async (doctorId: string) => {
-    // Navigate to doctor details screen (to be implemented)
-    // For now, show alert with doctor info
-    try {
-      const result = await ClinicOwnerDoctorService.getDoctorDetails(doctorId);
-      if (result.success) {
-        const { doctor, statistics } = result.data;
-        Alert.alert(
-          'Doctor Details',
-          `Name: ${doctor.name}\nSpecialty: ${doctor.specialty}\nEmail: ${doctor.email}\n\nPatients: ${statistics.totalPatients}\nSessions: ${statistics.totalSessions}\nRevenue: ₹${statistics.revenue.toLocaleString('en-IN')}`
-        );
-      }
-    } catch (error) {
-      Alert.alert('Info', 'Doctor details screen will be available soon');
-    }
+    // Navigate to doctor details screen
+    router.push(`/clinic-owner-doctor-details?id=${doctorId}`);
   };
 
   const formatCurrency = (amount: number) => {
@@ -198,7 +181,6 @@ export default function ClinicOwnerDoctorsScreen() {
           </View>
         ) : (
           doctors.map((doctor) => {
-            const isActive = doctor.status === 'active';
             return (
               <TouchableOpacity 
                 key={doctor.id} 
@@ -220,18 +202,6 @@ export default function ClinicOwnerDoctorsScreen() {
                     <Ionicons name="hand-left" size={16} color="#6B46C1" />
                     <Text style={styles.actionText}>Tap to view details & manage</Text>
                   </View>
-                </View>
-                <View style={styles.toggleContainer}>
-                  <Switch
-                    value={isActive}
-                    onValueChange={() => handleToggleStatus(doctor.id, doctor.status)}
-                    trackColor={{ false: '#D1D5DB', true: '#10B981' }}
-                    thumbColor={isActive ? '#FFFFFF' : '#FFFFFF'}
-                    ios_backgroundColor="#D1D5DB"
-                  />
-                  <Text style={[styles.statusText, isActive && styles.statusTextActive]}>
-                    {isActive ? 'Active' : 'Inactive'}
-                  </Text>
                 </View>
               </TouchableOpacity>
             );
@@ -303,6 +273,38 @@ export default function ClinicOwnerDoctorsScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Bottom Navigation */}
+      <View style={styles.bottomNav}>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push('/clinic-owner-dashboard')}
+        >
+          <Ionicons name="home" size={24} color="#6B7280" />
+          <Text style={styles.navText}>Home</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => router.push('/clinic-owner-dashboard')}
+        >
+          <Ionicons name="people" size={24} color="#6B7280" />
+          <Text style={styles.navText}>Patients</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.navItem, styles.navItemActive]}
+          onPress={() => {}}
+        >
+          <Ionicons name="medical" size={24} color="#6B46C1" />
+          <Text style={[styles.navText, styles.navTextActive]}>Doctors</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={styles.navItem} 
+          onPress={() => router.push('/clinic-owner-profile')}
+        >
+          <Ionicons name="person" size={24} color="#6B7280" />
+          <Text style={styles.navText}>Profile</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -441,19 +443,6 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     fontStyle: 'italic',
   },
-  toggleContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statusText: {
-    fontSize: 12,
-    color: '#9CA3AF',
-    marginTop: 8,
-    fontWeight: '600',
-  },
-  statusTextActive: {
-    color: '#10B981',
-  },
   emptyContainer: {
     alignItems: 'center',
     justifyContent: 'center',
@@ -573,6 +562,33 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: '#374151',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  // Bottom Navigation Styles
+  bottomNav: {
+    flexDirection: 'row',
+    backgroundColor: 'white',
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  navItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  navItemActive: {
+    backgroundColor: 'rgba(107, 70, 193, 0.1)',
+  },
+  navText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+  },
+  navTextActive: {
+    color: '#6B46C1',
     fontWeight: '600',
   },
 });

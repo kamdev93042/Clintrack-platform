@@ -12,6 +12,7 @@ export default function SignUpScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [specialty, setSpecialty] = useState('');
   const [showSpecialtyModal, setShowSpecialtyModal] = useState(false);
+  const [specialId, setSpecialId] = useState('');
   const [idDocument, setIdDocument] = useState<{name: string, size: string, uri: string, type: string} | null>(null);
   const [pinCode, setPinCode] = useState('');
   const [password, setPassword] = useState('');
@@ -34,7 +35,7 @@ export default function SignUpScreen() {
   ];
 
   const handleSignUp = async () => {
-    if (!fullName || !email || !phoneNumber || !specialty || !password || !pinCode) {
+    if (!fullName || !email || !phoneNumber || !specialty || !password || !pinCode || !specialId) {
       Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
@@ -44,8 +45,8 @@ export default function SignUpScreen() {
       return;
     }
 
-    if (!idDocument) {
-      Alert.alert('Error', 'Please upload your ID document to complete registration');
+    if (specialId.length !== 6) {
+      Alert.alert('Error', 'Special ID must be exactly 6 digits');
       return;
     }
 
@@ -58,12 +59,13 @@ export default function SignUpScreen() {
         specialty,
         password,
         pinCode,
+        specialId,
       };
 
       console.log('Registering with data:', doctorData);
       console.log('ID Document:', idDocument);
       
-      const result = await AuthService.register(doctorData, idDocument);
+      const result = await AuthService.register(doctorData, idDocument as any);
       
       if (result.success) {
         // Show success message after a brief delay
@@ -228,7 +230,6 @@ export default function SignUpScreen() {
             onChangeText={setPinCode}
             keyboardType="numeric"
             maxLength={6}
-            secureTextEntry={true}
             autoCorrect={false}
           />
         </View>
@@ -247,9 +248,25 @@ export default function SignUpScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Special ID Input */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Special ID (6 digits) *</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your 6-digit Special ID"
+            placeholderTextColor="#9CA3AF"
+            value={specialId}
+            onChangeText={setSpecialId}
+            keyboardType="numeric"
+            maxLength={6}
+            autoCorrect={false}
+          />
+          <Text style={styles.helperText}>This unique ID will be used when clinic owners add you to their clinic</Text>
+        </View>
+
         {/* ID Document Upload */}
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Doctor ID Document *</Text>
+          <Text style={styles.inputLabel}>Doctor ID Document (Optional)</Text>
           <View style={styles.idUploadContainer}>
             {!idDocument ? (
               <TouchableOpacity style={styles.uploadButton} onPress={handleUploadID}>
@@ -427,6 +444,12 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     backgroundColor: 'white',
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   specialtyContainer: {
     position: 'relative',

@@ -583,10 +583,6 @@ export default function ClinicOwnerDashboardScreen() {
           <Ionicons name="medical" size={24} color="#6B7280" />
           <Text style={styles.navText}>Doctors</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem}>
-          <Ionicons name="cloud-upload" size={24} color="#6B7280" />
-          <Text style={styles.navText}>Uploads</Text>
-        </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={handleProfilePress}>
           <Ionicons name="person" size={24} color="#6B7280" />
           <Text style={styles.navText}>Profile</Text>

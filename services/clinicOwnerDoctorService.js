@@ -1,4 +1,5 @@
 import ApiService from './api';
+import ClinicOwnerAuthService from './clinicOwnerAuthService';
 
 class ClinicOwnerDoctorService {
   // Add doctor to clinic (by email)
@@ -95,15 +96,33 @@ class ClinicOwnerDoctorService {
   // Remove doctor from clinic
   async removeDoctor(doctorId) {
     try {
+      // Ensure token is set before making request
+      const token = await ClinicOwnerAuthService.getToken();
+      if (token) {
+        ApiService.setToken(token);
+        console.log('Token set for removeDoctor request');
+      } else {
+        console.error('No token available for removeDoctor request');
+        return {
+          success: false,
+          message: 'Authentication required. Please login again.',
+        };
+      }
+      
+      console.log('Calling removeDoctor API for doctorId:', doctorId);
       const response = await ApiService.delete(`/clinic-owner/doctors/${doctorId}`);
+      console.log('Remove doctor API response:', response);
       return {
         success: true,
-        message: response.message,
+        message: response.message || 'Doctor removed successfully',
       };
     } catch (error) {
+      console.error('Remove doctor API error:', error);
+      console.error('Error response:', error?.response);
+      const errorMessage = error?.message || error?.response?.data?.message || 'Failed to remove doctor';
       return {
         success: false,
-        message: error.message || 'Failed to remove doctor',
+        message: errorMessage,
       };
     }
   }

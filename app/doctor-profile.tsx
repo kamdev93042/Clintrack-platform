@@ -34,19 +34,7 @@ export default function DoctorProfileScreen() {
 
   const loadProfile = async () => {
     try {
-      // First try to get user from AsyncStorage (faster and has latest data)
-      const storedUser = await AuthService.getUser();
-      if (storedUser) {
-        setDoctor(storedUser);
-        setEditName(storedUser.fullName || '');
-        setEditEmail(storedUser.email || '');
-        setEditPhone(storedUser.phoneNumber || '');
-        setEditSpecialty(storedUser.specialty || '');
-        setProfileLoading(false);
-        return;
-      }
-      
-      // Fallback to API if no stored user
+      // Always fetch from API to get latest data including specialId
       const result = await ProfileService.getProfile();
       if (result.success) {
         setDoctor(result.doctor);
@@ -54,11 +42,35 @@ export default function DoctorProfileScreen() {
         setEditEmail(result.doctor.email || '');
         setEditPhone(result.doctor.phoneNumber || '');
         setEditSpecialty(result.doctor.specialty || '');
+        
+        // Update stored user data with latest info including specialId
+        await AuthService.saveUser(result.doctor);
       } else {
-        Alert.alert('Error', result.message);
+        // Fallback to stored user if API fails
+        const storedUser = await AuthService.getUser();
+        if (storedUser) {
+          setDoctor(storedUser);
+          setEditName(storedUser.fullName || '');
+          setEditEmail(storedUser.email || '');
+          setEditPhone(storedUser.phoneNumber || '');
+          setEditSpecialty(storedUser.specialty || '');
+        } else {
+          Alert.alert('Error', result.message);
+        }
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to load profile');
+      console.error('Error loading profile:', error);
+      // Fallback to stored user on error
+      const storedUser = await AuthService.getUser();
+      if (storedUser) {
+        setDoctor(storedUser);
+        setEditName(storedUser.fullName || '');
+        setEditEmail(storedUser.email || '');
+        setEditPhone(storedUser.phoneNumber || '');
+        setEditSpecialty(storedUser.specialty || '');
+      } else {
+        Alert.alert('Error', 'Failed to load profile');
+      }
     } finally {
       setProfileLoading(false);
     }
@@ -205,7 +217,14 @@ export default function DoctorProfileScreen() {
               </View>
             </View>
 
-
+            <View style={styles.fieldContainer}>
+              <Text style={styles.fieldLabel}>Special ID</Text>
+              <View style={styles.fieldValue}>
+                <Text style={styles.fieldText}>
+                  {profileLoading ? 'Loading...' : (doctor?.specialId || 'Not set')}
+                </Text>
+              </View>
+            </View>
 
           </View>
         </View>
