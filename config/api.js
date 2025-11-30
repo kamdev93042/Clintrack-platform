@@ -1,5 +1,6 @@
 // API Configuration
 // HARDCODE PRODUCTION URL - This ensures built APK always uses production
+// Backend is confirmed working at: http://3.110.168.166/api/health
 const PRODUCTION_API_URL = 'http://3.110.168.166/api';
 
 // For built APK, always use production URL

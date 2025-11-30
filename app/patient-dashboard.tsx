@@ -3,10 +3,12 @@ import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, Scro
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PatientAuthService from '../services/patientAuthService';
 
 
 export default function PatientDashboardScreen() {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState('overview');
   const [patientData, setPatientData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -482,7 +484,7 @@ export default function PatientDashboardScreen() {
       <StatusBar barStyle="light-content" backgroundColor="#6B46C1" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
         <View style={styles.headerLeft}>
           <View style={styles.logoContainer}>
             <Ionicons name="accessibility" size={20} color="#6B46C1" />
@@ -703,7 +705,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     backgroundColor: '#6B46C1',
     paddingHorizontal: 20,
-    paddingVertical: 15,
+    paddingBottom: 15,
   },
   headerLeft: {
     flexDirection: 'row',

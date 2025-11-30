@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, SafeAreaView, StatusBar, Alert, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, StatusBar, Alert, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PatientAuthService from '../services/patientAuthService';
 
 export default function PatientLoginScreen() {
@@ -9,6 +11,7 @@ export default function PatientLoginScreen() {
   const [mobileNumber, setMobileNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
+  const insets = useSafeAreaInsets();
 
   const handleLogin = async () => {
     if (!patientName || !mobileNumber) {
@@ -42,9 +45,9 @@ export default function PatientLoginScreen() {
         setLoading(false);
         Alert.alert('Error', result.message || 'Login failed. Please try again.');
       }
-    } catch (error) {
+    } catch (error: any) {
       setLoading(false);
-      Alert.alert('Error', error.message || 'Login failed. Please try again.');
+      Alert.alert('Error', error?.message || 'Login failed. Please try again.');
     }
   };
 
@@ -53,11 +56,11 @@ export default function PatientLoginScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container} edges={['bottom']}>
       <StatusBar barStyle="light-content" backgroundColor="#6B46C1" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 10 }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="white" />
         </TouchableOpacity>
@@ -245,6 +248,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-start',
     marginTop: 30,
+    marginBottom: 20,
+    paddingBottom: 20,
     paddingHorizontal: 10,
   },
   infoText: {

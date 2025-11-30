@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ClinicOwnerAuthService from '../services/clinicOwnerAuthService';
 import ClinicOwnerService from '../services/clinicOwnerService';
 import ClinicOwnerPatientService from '../services/clinicOwnerPatientService';
@@ -61,6 +62,7 @@ const defaultUploadsTrend = [
 ];
 
 export default function ClinicOwnerDashboardScreen() {
+  const insets = useSafeAreaInsets();
   const [activeTab, setActiveTab] = useState<'dashboard' | 'patients'>('dashboard');
   const [searchQuery, setSearchQuery] = useState('');
   const [clinicName, setClinicName] = useState('City Health Clinic');
@@ -350,7 +352,7 @@ export default function ClinicOwnerDashboardScreen() {
       }
     >
       {/* Header Section */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
         <Text style={styles.welcomeText}>Welcome back,</Text>
         <Text style={styles.clinicName}>{loading ? 'Loading...' : clinicName}</Text>
         <Text style={styles.ownerName}>{loading ? 'Loading...' : ownerName}</Text>
@@ -603,7 +605,6 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#6B46C1',
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 40,
   },
   welcomeText: {

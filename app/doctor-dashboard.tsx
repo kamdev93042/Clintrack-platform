@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DashboardService from '../services/dashboardService';
 import AuthService from '../services/authService';
 
 export default function DoctorDashboardScreen() {
+  const insets = useSafeAreaInsets();
   const [dashboardData, setDashboardData] = useState<any>(null);
   const [statistics, setStatistics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -132,7 +134,7 @@ export default function DoctorDashboardScreen() {
       
       <ScrollView style={styles.scrollView}>
         {/* Header Section */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 20 }]}>
           <Text style={styles.welcomeText}>Welcome back,</Text>
           <Text style={styles.doctorName}>
             {loading ? 'Loading...' : (doctor?.fullName || 'Dr. Unknown')}
@@ -273,7 +275,6 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#6B46C1',
     paddingHorizontal: 20,
-    paddingTop: 20,
     paddingBottom: 40,
   },
   welcomeText: {

@@ -99,18 +99,44 @@ class ApiService {
 
       return data;
     } catch (error) {
-      console.error('❌ API Error:', error);
-      console.error('❌ Error message:', error.message);
-      console.error('❌ Error stack:', error.stack);
+      console.error('═══════════════════════════════════════');
+      console.error('❌ API Error Details:');
+      console.error('❌ Error Type:', error.name);
+      console.error('❌ Error Message:', error.message);
       console.error('❌ Failed URL:', url);
+      console.error('❌ Base URL:', this.baseURL);
+      console.error('═══════════════════════════════════════');
+      
       // If error doesn't have response, it might be a network error
       if (!error.response) {
-        console.error('❌ Network or parsing error:', error.message);
-        console.error('❌ This usually means:');
-        console.error('   1. Backend is not accessible from device');
-        console.error('   2. Android is blocking HTTP traffic');
-        console.error('   3. Wrong API URL is being used');
-        console.error('   4. Network connectivity issue');
+        console.error('❌ NETWORK ERROR DETECTED!');
+        console.error('❌ Possible Causes:');
+        console.error('   1. 📱 Mobile network blocking HTTP traffic');
+        console.error('   2. 🔒 Carrier restrictions on HTTP');
+        console.error('   3. 🌐 Backend not accessible from your network');
+        console.error('   4. 🔥 Firewall blocking connection');
+        console.error('   5. ⚠️  Wrong API URL');
+        console.error('');
+        console.error('🔍 TROUBLESHOOTING STEPS:');
+        console.error('   ✅ Try connecting to WiFi instead of mobile data');
+        console.error('   ✅ Test in device browser: ' + this.baseURL.replace('/api', '/api/health'));
+        console.error('   ✅ Check if backend is accessible from your network');
+        console.error('   ✅ Verify API URL is correct: ' + this.baseURL);
+        console.error('═══════════════════════════════════════');
+        
+        // Create a more helpful error message
+        const networkError = new Error(
+          `Network request failed.\n\n` +
+          `Possible causes:\n` +
+          `• Mobile network blocking HTTP traffic\n` +
+          `• Try switching to WiFi\n` +
+          `• Backend might not be accessible from your network\n\n` +
+          `URL: ${url}\n` +
+          `Original error: ${error.message}`
+        );
+        networkError.originalError = error;
+        networkError.isNetworkError = true;
+        throw networkError;
       }
       throw error;
     }
