@@ -64,8 +64,18 @@ class ApiService {
       console.log('📡 Full URL:', url);
       console.log('🔑 Base URL:', this.baseURL);
       console.log('📋 Request headers:', JSON.stringify(config.headers, null, 2));
+      console.log('🌍 Network info - URL starts with http:', url.startsWith('http'));
       
-      const response = await fetch(url, config);
+      // Add timeout to help debug network issues
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      const response = await fetch(url, {
+        ...config,
+        signal: controller.signal,
+      });
+      
+      clearTimeout(timeoutId);
       
       // Check if response is JSON
       const contentType = response.headers.get('content-type');
