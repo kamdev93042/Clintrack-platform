@@ -60,8 +60,10 @@ class ApiService {
     };
 
     try {
-      console.log('Making API request:', config.method, url);
-      console.log('Request headers:', JSON.stringify(config.headers, null, 2));
+      console.log('🌐 Making API request:', config.method || 'GET', url);
+      console.log('📡 Full URL:', url);
+      console.log('🔑 Base URL:', this.baseURL);
+      console.log('📋 Request headers:', JSON.stringify(config.headers, null, 2));
       
       const response = await fetch(url, config);
       
@@ -87,10 +89,18 @@ class ApiService {
 
       return data;
     } catch (error) {
-      console.error('API Error:', error);
+      console.error('❌ API Error:', error);
+      console.error('❌ Error message:', error.message);
+      console.error('❌ Error stack:', error.stack);
+      console.error('❌ Failed URL:', url);
       // If error doesn't have response, it might be a network error
       if (!error.response) {
-        console.error('Network or parsing error:', error.message);
+        console.error('❌ Network or parsing error:', error.message);
+        console.error('❌ This usually means:');
+        console.error('   1. Backend is not accessible from device');
+        console.error('   2. Android is blocking HTTP traffic');
+        console.error('   3. Wrong API URL is being used');
+        console.error('   4. Network connectivity issue');
       }
       throw error;
     }
