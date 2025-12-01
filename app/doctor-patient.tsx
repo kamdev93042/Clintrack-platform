@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Modal, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PatientService from '../services/patientService';
 import AuthService from '../services/authService';
 
 export default function DoctorPatientScreen() {
+  const insets = useSafeAreaInsets();
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
   const [patientName, setPatientName] = useState('');
   const [age, setAge] = useState('');
@@ -306,7 +308,7 @@ export default function DoctorPatientScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={20} color="#6B46C1" />
         </TouchableOpacity>

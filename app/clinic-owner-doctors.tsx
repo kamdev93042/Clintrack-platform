@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ClinicOwnerAuthService from '../services/clinicOwnerAuthService';
 import ClinicOwnerDoctorService from '../services/clinicOwnerDoctorService';
 
 export default function ClinicOwnerDoctorsScreen() {
+  const insets = useSafeAreaInsets();
   const [doctors, setDoctors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
@@ -139,7 +141,7 @@ export default function ClinicOwnerDoctorsScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#374151" />
         </TouchableOpacity>
@@ -150,7 +152,7 @@ export default function ClinicOwnerDoctorsScreen() {
       </View>
 
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, { marginTop: 10 }]}>
         <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}

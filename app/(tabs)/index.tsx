@@ -1,13 +1,54 @@
-import React, { useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, StatusBar, Modal, Dimensions, Alert } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, StatusBar, Modal, Dimensions, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AuthService from '../../services/authService';
+import PatientAuthService from '../../services/patientAuthService';
+import ClinicOwnerAuthService from '../../services/clinicOwnerAuthService';
 
 export default function HomeScreen() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true);
   const insets = useSafeAreaInsets();
+
+  // Check for existing sessions on app startup
+  useEffect(() => {
+    checkExistingSession();
+  }, []);
+
+  const checkExistingSession = async () => {
+    try {
+      // Check all three user types
+      const [doctorAuth, patientAuth, clinicOwnerAuth] = await Promise.all([
+        AuthService.isAuthenticated(),
+        PatientAuthService.isAuthenticated(),
+        ClinicOwnerAuthService.isAuthenticated(),
+      ]);
+
+      // Redirect to appropriate dashboard if user is already logged in
+      if (doctorAuth) {
+        router.replace('/doctor-dashboard');
+        return;
+      }
+      if (patientAuth) {
+        router.replace('/patient-dashboard');
+        return;
+      }
+      if (clinicOwnerAuth) {
+        router.replace('/clinic-owner-dashboard');
+        return;
+      }
+
+      // No user is logged in, show home screen
+      setCheckingAuth(false);
+    } catch (error) {
+      console.error('Error checking existing session:', error);
+      // On error, show home screen anyway
+      setCheckingAuth(false);
+    }
+  };
 
   const handleRoleSelection = (role: string) => {
     if (role === 'doctor') {
@@ -40,6 +81,19 @@ export default function HomeScreen() {
     setSidebarVisible(false);
     router.push('/pricing');
   };
+
+  // Show loading screen while checking authentication
+  if (checkingAuth) {
+    return (
+      <SafeAreaView style={styles.container} edges={['bottom']}>
+        <StatusBar barStyle="light-content" backgroundColor="#6B46C1" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="white" />
+          <Text style={styles.loadingText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container} edges={['bottom']}>
@@ -408,5 +462,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginLeft: 8,
     textAlign: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: 'white',
+    fontSize: 16,
+    marginTop: 16,
+    opacity: 0.9,
   },
 });

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import PaymentService from '../services/paymentService';
 import AuthService from '../services/authService';
@@ -9,6 +10,7 @@ import AuthService from '../services/authService';
 const MARKED_PAID_STORAGE_KEY = 'clintrack_marked_paid_patients';
 
 export default function DoctorPaymentsScreen() {
+  const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
   const [statistics, setStatistics] = useState({
     totalDue: 0,
@@ -372,7 +374,7 @@ export default function DoctorPaymentsScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={20} color="#6B46C1" />
         </TouchableOpacity>

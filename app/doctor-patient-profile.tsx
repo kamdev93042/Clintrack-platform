@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Modal, TextInput, Alert, Image, Dimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode } from 'expo-av';
 import PatientService from '../services/patientService';
@@ -10,6 +11,7 @@ import SessionService from '../services/sessionService';
 import MediaService from '../services/mediaService';
 
 export default function DoctorPatientProfileScreen() {
+  const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   
   // Get screen dimensions for responsive gallery (with state for dynamic updates)
@@ -676,7 +678,7 @@ export default function DoctorPatientProfileScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={20} color="#6B46C1" />
         </TouchableOpacity>

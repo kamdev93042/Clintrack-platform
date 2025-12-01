@@ -470,7 +470,7 @@ export default function ClinicOwnerDashboardScreen() {
 
   const renderPatients = () => (
     <View style={styles.patientsContainer}>
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, { marginTop: insets.top + 10 }]}>
         <Ionicons name="search" size={20} color="#9CA3AF" style={styles.searchIcon} />
         <TextInput
           style={styles.searchInput}

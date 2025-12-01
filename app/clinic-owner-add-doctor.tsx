@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Modal, TextInput, Alert, ActivityIndicator, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ClinicOwnerAuthService from '../services/clinicOwnerAuthService';
 import ClinicOwnerDoctorService from '../services/clinicOwnerDoctorService';
 
 export default function ClinicOwnerAddDoctorScreen() {
+  const insets = useSafeAreaInsets();
   const [pincode, setPincode] = useState('');
   const [doctors, setDoctors] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -140,7 +142,7 @@ export default function ClinicOwnerAddDoctorScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="white" />
       
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 15 }]}>
         <TouchableOpacity onPress={handleBack} style={styles.backButton}>
           <Ionicons name="arrow-back" size={24} color="#374151" />
         </TouchableOpacity>
@@ -149,7 +151,7 @@ export default function ClinicOwnerAddDoctorScreen() {
       </View>
 
       {/* Pincode Search */}
-      <View style={styles.searchContainer}>
+      <View style={[styles.searchContainer, { marginTop: 10 }]}>
         <View style={styles.searchInputContainer}>
           <Ionicons name="location" size={20} color="#9CA3AF" style={styles.searchIcon} />
           <TextInput
