@@ -2,10 +2,10 @@ import ApiService from './api';
 import ClinicOwnerAuthService from './clinicOwnerAuthService';
 
 class ClinicOwnerDoctorService {
-  // Add doctor to clinic (by email)
-  async addDoctor(email) {
+  // Add doctor to clinic (by specialId and doctorId)
+  async addDoctor(specialId, doctorId) {
     try {
-      const response = await ApiService.post('/clinic-owner/doctors', { email });
+      const response = await ApiService.post('/clinic-owner/doctors', { specialId, doctorId });
       return {
         success: true,
         message: response.message,

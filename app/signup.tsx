@@ -22,6 +22,9 @@ export default function SignUpScreen() {
   const [loading, setLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const insets = useSafeAreaInsets();
+  
+  // Field-level error states
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   const specialties = [
     'General Medicine',
@@ -38,19 +41,145 @@ export default function SignUpScreen() {
     'Other'
   ];
 
+  // Validation functions
+  const validateEmail = (email: string): string => {
+    if (!email) return 'Email is required';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return 'Please enter a valid email address';
+    return '';
+  };
+
+  const validatePhoneNumber = (phone: string): string => {
+    if (!phone) return 'Phone number is required';
+    if (!/^\d+$/.test(phone)) return 'Phone number must contain only digits';
+    if (phone.length !== 10) return 'Phone number must be exactly 10 digits';
+    return '';
+  };
+
+  const validatePassword = (pwd: string): string => {
+    if (!pwd) return 'Password is required';
+    if (pwd.length < 6) return 'Password must be at least 6 characters';
+    return '';
+  };
+
+  const validatePinCode = (pin: string): string => {
+    if (!pin) return 'PIN code is required';
+    if (!/^\d+$/.test(pin)) return 'PIN code must contain only digits';
+    if (pin.length !== 6) return 'PIN code must be exactly 6 digits';
+    return '';
+  };
+
+  const validateSpecialId = (id: string): string => {
+    if (!id) return 'Special ID is required';
+    if (!/^\d+$/.test(id)) return 'Special ID must contain only digits';
+    if (id.length !== 6) return 'Special ID must be exactly 6 digits';
+    return '';
+  };
+
+  // Clear error for a specific field
+  const clearError = (fieldName: string) => {
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[fieldName];
+      return newErrors;
+    });
+  };
+
+  // Handle backend validation errors
+  const handleBackendErrors = (error: any) => {
+    const newErrors: {[key: string]: string} = {};
+    
+    // Check if error has validation errors array (from express-validator)
+    if (error?.errors && Array.isArray(error.errors)) {
+      error.errors.forEach((err: any) => {
+        const field = err.path || err.param || err.field || err.location;
+        const message = err.msg || err.message || 'Invalid value';
+        
+        // Map backend field names to frontend field names
+        const fieldMap: {[key: string]: string} = {
+          'fullName': 'fullName',
+          'email': 'email',
+          'phoneNumber': 'phoneNumber',
+          'specialty': 'specialty',
+          'password': 'password',
+          'pinCode': 'pinCode',
+          'specialId': 'specialId',
+          'idDocument': 'idDocument',
+        };
+        
+        const frontendField = fieldMap[field] || field;
+        newErrors[frontendField] = message;
+      });
+    } 
+    // Check if error has a single message and try to extract field
+    else if (error?.message) {
+      const message = error.message.toLowerCase();
+      // Try to match field names in error message
+      if (message.includes('email') || message.includes('invalid email')) {
+        newErrors.email = error.message;
+      } else if (message.includes('phone') || message.includes('phone number')) {
+        newErrors.phoneNumber = error.message;
+      } else if (message.includes('password')) {
+        newErrors.password = error.message;
+      } else if (message.includes('special id') || message.includes('specialid') || message.includes('special id')) {
+        newErrors.specialId = error.message;
+      } else if (message.includes('pin') || message.includes('pin code')) {
+        newErrors.pinCode = error.message;
+      } else if (message.includes('name') || message.includes('full name')) {
+        newErrors.fullName = error.message;
+      } else if (message.includes('specialty')) {
+        newErrors.specialty = error.message;
+      } else if (message.includes('document') || message.includes('id document')) {
+        newErrors.idDocument = error.message;
+      } else {
+        // If we can't determine the field, show general error
+        // But still try to show it somewhere visible
+        newErrors.email = error.message; // Show in email field as fallback
+      }
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+    }
+  };
+
   const handleSignUp = async () => {
-    if (!fullName || !email || !phoneNumber || !specialty || !password || !pinCode || !specialId) {
-      Alert.alert('Error', 'Please fill in all required fields');
-      return;
+    // Clear previous errors
+    setErrors({});
+    
+    // Validate all fields
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!fullName.trim()) {
+      newErrors.fullName = 'Full name is required';
     }
-
-    if (phoneNumber.length !== 10) {
-      Alert.alert('Error', 'Phone number must be exactly 10 digits');
-      return;
+    
+    const emailError = validateEmail(email);
+    if (emailError) newErrors.email = emailError;
+    
+    const phoneError = validatePhoneNumber(phoneNumber);
+    if (phoneError) newErrors.phoneNumber = phoneError;
+    
+    if (!specialty) {
+      newErrors.specialty = 'Specialty is required';
     }
-
-    if (specialId.length !== 6) {
-      Alert.alert('Error', 'Special ID must be exactly 6 digits');
+    
+    const passwordError = validatePassword(password);
+    if (passwordError) newErrors.password = passwordError;
+    
+    const pinError = validatePinCode(pinCode);
+    if (pinError) newErrors.pinCode = pinError;
+    
+    const specialIdError = validateSpecialId(specialId);
+    if (specialIdError) newErrors.specialId = specialIdError;
+    
+    if (!idDocument) {
+      newErrors.idDocument = 'ID document is required';
+    }
+    
+    // If there are validation errors, set them and return
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
@@ -72,23 +201,37 @@ export default function SignUpScreen() {
       const result = await AuthService.register(doctorData, idDocument as any);
       
       if (result.success) {
-        // Show success message after a brief delay
-        setTimeout(() => {
-          setLoading(false);
-          setShowSuccessMessage(true);
-          
-          // Auto redirect to login after showing success message
-          setTimeout(() => {
-            router.push('/login');
-          }, 1500);
-        }, 1000);
+        // Navigate to email verification screen
+        setLoading(false);
+        router.push({
+          pathname: '/verify-email',
+          params: { 
+            email: email.trim(),
+            registrationToken: result.registrationToken 
+          }
+        });
       } else {
         setLoading(false);
-        Alert.alert('Error', result.message);
+        // Handle backend validation errors from message
+        if (result.message) {
+          // Try to parse error message or handle it
+          handleBackendErrors({ message: result.message });
+        } else {
+          Alert.alert('Error', result.message || 'Registration failed');
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       setLoading(false);
-      Alert.alert('Error', 'Registration failed. Please try again.');
+      // Handle API errors
+      if (error?.response?.data) {
+        // Backend validation errors are in error.response.data
+        handleBackendErrors(error.response.data);
+      } else if (error?.message) {
+        // Network or other errors
+        handleBackendErrors({ message: error.message });
+      } else {
+        Alert.alert('Error', 'Registration failed. Please try again.');
+      }
     }
   };
 
@@ -118,6 +261,9 @@ export default function SignUpScreen() {
           type: file.mimeType || 'application/pdf'
         });
 
+        // Clear error when document is uploaded
+        clearError('idDocument');
+
         console.log('File selected:', file.name, fileSizeInMB.toFixed(2) + 'MB');
       }
     } catch (error) {
@@ -141,6 +287,7 @@ export default function SignUpScreen() {
   const handleSpecialtySelect = (selectedSpecialty: string) => {
     setSpecialty(selectedSpecialty);
     setShowSpecialtyModal(false);
+    clearError('specialty');
   };
 
   return (
@@ -174,55 +321,71 @@ export default function SignUpScreen() {
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>Full Name</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.fullName && styles.inputError]}
             placeholder="Dr. Your Name"
             placeholderTextColor="#9CA3AF"
             value={fullName}
-            onChangeText={setFullName}
+            onChangeText={(text) => {
+              setFullName(text);
+              clearError('fullName');
+            }}
             autoCapitalize="words"
             autoCorrect={false}
           />
+          {errors.fullName && <Text style={styles.errorText}>{errors.fullName}</Text>}
         </View>
 
         {/* Email Input */}
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>Email Address</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.email && styles.inputError]}
             placeholder="your@email.com"
             placeholderTextColor="#9CA3AF"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              clearError('email');
+            }}
             keyboardType="email-address"
             autoCapitalize="none"
             autoCorrect={false}
           />
+          {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
         </View>
 
         {/* Phone Number Input */}
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>Phone Number</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.phoneNumber && styles.inputError]}
             placeholder="+91 XXXXX XXXXX"
             placeholderTextColor="#9CA3AF"
             value={phoneNumber}
-            onChangeText={setPhoneNumber}
+            onChangeText={(text) => {
+              setPhoneNumber(text);
+              clearError('phoneNumber');
+            }}
             keyboardType="phone-pad"
             autoCorrect={false}
+            maxLength={10}
           />
+          {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
         </View>
 
         {/* Password Input */}
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>Password</Text>
-          <View style={styles.passwordContainer}>
+          <View style={[styles.passwordContainer, errors.password && styles.inputError]}>
             <TextInput
               style={styles.passwordInput}
               placeholder="Enter your password"
               placeholderTextColor="#9CA3AF"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => {
+                setPassword(text);
+                clearError('password');
+              }}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
               autoCorrect={false}
@@ -238,65 +401,84 @@ export default function SignUpScreen() {
               />
             </TouchableOpacity>
           </View>
+          {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
         </View>
 
         {/* PIN Code Input */}
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>PIN Code</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.pinCode && styles.inputError]}
             placeholder="Enter your PIN code"
             placeholderTextColor="#9CA3AF"
             value={pinCode}
-            onChangeText={setPinCode}
+            onChangeText={(text) => {
+              setPinCode(text);
+              clearError('pinCode');
+            }}
             keyboardType="numeric"
             maxLength={6}
             autoCorrect={false}
           />
+          {errors.pinCode && <Text style={styles.errorText}>{errors.pinCode}</Text>}
         </View>
 
         {/* Specialty Input */}
         <View style={styles.inputContainer}>
           <Text style={styles.inputLabel}>Specialty</Text>
           <TouchableOpacity 
-            style={styles.specialtyContainer}
-            onPress={() => setShowSpecialtyModal(true)}
+            style={[styles.specialtyContainer, errors.specialty && styles.inputError]}
+            onPress={() => {
+              setShowSpecialtyModal(true);
+              clearError('specialty');
+            }}
           >
             <Text style={[styles.specialtyInput, specialty ? styles.specialtyInputSelected : styles.specialtyInputPlaceholder]}>
               {specialty || "Select your specialty"}
             </Text>
             <Ionicons name="chevron-down" size={20} color="#9CA3AF" style={styles.chevronIcon} />
           </TouchableOpacity>
+          {errors.specialty && <Text style={styles.errorText}>{errors.specialty}</Text>}
         </View>
 
         {/* Special ID Input */}
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Special ID (6 digits) *</Text>
+          <Text style={styles.inputLabel}>Special ID (6 digits)</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.specialId && styles.inputError]}
             placeholder="Enter your 6-digit Special ID"
             placeholderTextColor="#9CA3AF"
             value={specialId}
-            onChangeText={setSpecialId}
+            onChangeText={(text) => {
+              setSpecialId(text);
+              clearError('specialId');
+            }}
             keyboardType="numeric"
             maxLength={6}
             autoCorrect={false}
           />
+          {errors.specialId && <Text style={styles.errorText}>{errors.specialId}</Text>}
           <Text style={styles.helperText}>This unique ID will be used when clinic owners add you to their clinic</Text>
         </View>
 
         {/* ID Document Upload */}
         <View style={styles.inputContainer}>
-          <Text style={styles.inputLabel}>Doctor ID Document (Optional)</Text>
+          <Text style={styles.inputLabel}>Doctor ID Document</Text>
           <View style={styles.idUploadContainer}>
             {!idDocument ? (
-              <TouchableOpacity style={styles.uploadButton} onPress={handleUploadID}>
-                <Ionicons name="cloud-upload-outline" size={24} color="#6B46C1" />
-                <Text style={styles.uploadButtonText}>Upload ID Document</Text>
+              <TouchableOpacity 
+                style={[styles.uploadButton, errors.idDocument && styles.uploadButtonError]} 
+                onPress={() => {
+                  handleUploadID();
+                  clearError('idDocument');
+                }}
+              >
+                <Ionicons name="cloud-upload-outline" size={24} color={errors.idDocument ? "#EF4444" : "#6B46C1"} />
+                <Text style={[styles.uploadButtonText, errors.idDocument && styles.uploadButtonTextError]}>Upload ID Document</Text>
                 <Text style={styles.uploadSubtext}>PDF, JPG, PNG (Max 5MB)</Text>
               </TouchableOpacity>
             ) : (
-              <View style={styles.uploadedFileContainer}>
+              <View style={[styles.uploadedFileContainer, errors.idDocument && styles.uploadedFileContainerError]}>
                 <View style={styles.fileInfo}>
                   <Ionicons name="document-text" size={20} color="#6B46C1" />
                   <View style={styles.fileDetails}>
@@ -304,12 +486,16 @@ export default function SignUpScreen() {
                     <Text style={styles.fileSize}>{idDocument.size}</Text>
                   </View>
                 </View>
-                <TouchableOpacity style={styles.removeButton} onPress={handleRemoveID}>
+                <TouchableOpacity style={styles.removeButton} onPress={() => {
+                  handleRemoveID();
+                  clearError('idDocument');
+                }}>
                   <Ionicons name="close-circle" size={20} color="#EF4444" />
                 </TouchableOpacity>
               </View>
             )}
           </View>
+          {errors.idDocument && <Text style={styles.errorText}>{errors.idDocument}</Text>}
         </View>
 
         {/* Create Account Button */}
@@ -467,6 +653,16 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     color: '#374151',
   },
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -607,6 +803,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F8FAFC',
+  },
+  uploadButtonError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  uploadButtonTextError: {
+    color: '#EF4444',
+  },
+  uploadedFileContainerError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
   },
   uploadButtonText: {
     fontSize: 15,

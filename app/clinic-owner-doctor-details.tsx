@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, ActivityIndicator, Alert, Modal } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -13,6 +13,9 @@ export default function ClinicOwnerDoctorDetailsScreen() {
   const [statistics, setStatistics] = useState<any>(null);
   const [recentPatients, setRecentPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [showRemoveModal, setShowRemoveModal] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   // Ensure id is a string (useLocalSearchParams can return array)
   const doctorId = Array.isArray(id) ? id[0] : id;
@@ -84,6 +87,42 @@ export default function ClinicOwnerDoctorDetailsScreen() {
     } catch (error) {
       Alert.alert('Error', 'Failed to update doctor status. Please try again.');
     }
+  };
+
+  const handleRemoveDoctor = () => {
+    if (!doctor || !doctorId) return;
+    setShowRemoveModal(true);
+  };
+
+  const handleConfirmRemove = async () => {
+    if (!doctor || !doctorId) return;
+    
+    try {
+      setRemoving(true);
+      const result = await ClinicOwnerDoctorService.removeDoctor(doctorId);
+      
+      if (result.success) {
+        setRemoving(false);
+        setShowRemoveModal(false);
+        // Show success modal
+        setShowSuccessModal(true);
+        // Navigate to doctors list after 2 seconds
+        setTimeout(() => {
+          setShowSuccessModal(false);
+          router.push('/clinic-owner-doctors');
+        }, 2000);
+      } else {
+        setRemoving(false);
+        Alert.alert('Error', result.message || 'Failed to remove doctor');
+      }
+    } catch (error) {
+      setRemoving(false);
+      Alert.alert('Error', 'Failed to remove doctor. Please try again.');
+    }
+  };
+
+  const handleCancelRemove = () => {
+    setShowRemoveModal(false);
   };
 
 
@@ -239,14 +278,6 @@ export default function ClinicOwnerDoctorDetailsScreen() {
 
           <View style={styles.infoRow}>
             <View style={styles.infoItem}>
-              <Ionicons name="key-outline" size={20} color="#6B46C1" />
-              <Text style={styles.infoLabel}>Special ID</Text>
-              <Text style={[styles.infoValue, styles.specialIdValue]}>{doctor.specialId || 'N/A'}</Text>
-            </View>
-          </View>
-
-          <View style={styles.infoRow}>
-            <View style={styles.infoItem}>
               <Ionicons name="calendar-outline" size={20} color="#6B7280" />
               <Text style={styles.infoLabel}>Joined Date</Text>
               <Text style={styles.infoValue}>{formatDate(doctor.createdAt)}</Text>
@@ -297,8 +328,77 @@ export default function ClinicOwnerDoctorDetailsScreen() {
               {doctor.isActive ? 'Deactivate Doctor' : 'Activate Doctor'}
             </Text>
           </TouchableOpacity>
+          
+          <TouchableOpacity 
+            style={[styles.actionButton, styles.actionButtonRemove]}
+            onPress={handleRemoveDoctor}
+          >
+            <Ionicons 
+              name="trash-outline" 
+              size={20} 
+              color="white" 
+            />
+            <Text style={styles.actionButtonText}>
+              Remove Doctor
+            </Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
+
+      {/* Remove Doctor Confirmation Modal */}
+      <Modal
+        visible={showRemoveModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCancelRemove}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Ionicons name="warning" size={32} color="#EF4444" />
+              <Text style={styles.modalTitle}>Remove Doctor</Text>
+            </View>
+            
+            <Text style={styles.modalMessage}>
+              Are you sure you want to remove {doctor?.name} from your clinic?
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalCancelButton]}
+                onPress={handleCancelRemove}
+                disabled={removing}
+              >
+                <Text style={styles.modalCancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity 
+                style={[styles.modalButton, styles.modalConfirmButton, removing && styles.modalButtonDisabled]}
+                onPress={handleConfirmRemove}
+                disabled={removing}
+              >
+                {removing ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Text style={styles.modalConfirmButtonText}>Remove</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Success Message */}
+      {showSuccessModal && (
+        <View style={styles.loaderOverlay}>
+          <View style={styles.successMessageContainer}>
+            <Ionicons name="checkmark-circle" size={48} color="#10B981" />
+            <Text style={styles.successMessageText}>
+              Successfully removed doctor
+            </Text>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -526,10 +626,6 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     flex: 2,
   },
-  specialIdValue: {
-    color: '#6B46C1',
-    fontWeight: '600',
-  },
   patientsCard: {
     backgroundColor: 'white',
     borderRadius: 16,
@@ -613,11 +709,107 @@ const styles = StyleSheet.create({
   actionButtonInactive: {
     backgroundColor: '#F59E0B',
   },
+  actionButtonRemove: {
+    backgroundColor: '#EF4444',
+  },
   actionButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
     marginLeft: 8,
+  },
+  // Modal Styles
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  modalHeader: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    marginTop: 12,
+  },
+  modalMessage: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
+    lineHeight: 24,
+    marginBottom: 24,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelButton: {
+    backgroundColor: '#F3F4F6',
+  },
+  modalConfirmButton: {
+    backgroundColor: '#EF4444',
+  },
+  modalButtonDisabled: {
+    opacity: 0.6,
+  },
+  modalCancelButtonText: {
+    color: '#374151',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalConfirmButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  // Success Message Styles (matching login success style)
+  loaderOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  successMessageContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successMessageText: {
+    color: '#374151',
+    fontSize: 18,
+    fontWeight: '600',
+    marginTop: 16,
   },
 });
 

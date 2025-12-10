@@ -198,31 +198,6 @@ export default function DoctorPaymentsScreen() {
     return `₹${amount.toLocaleString('en-IN')}`;
   };
 
-  const handleSendReminder = async (patientId: string, patientName: string) => {
-    Alert.alert(
-      'Send Reminder',
-      `Send payment reminder to ${patientName}?`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Send', 
-          onPress: async () => {
-            try {
-              const result = await PaymentService.sendPaymentReminder(patientId);
-              if (result.success) {
-                Alert.alert('Success', `Payment reminder sent to ${patientName}`);
-              } else {
-                Alert.alert('Error', result.message || 'Failed to send reminder');
-              }
-            } catch (error) {
-              console.error('Error sending reminder:', error);
-              Alert.alert('Error', 'Failed to send payment reminder');
-            }
-          }
-        }
-      ]
-    );
-  };
 
   const handleMarkPaid = async (patientId: string, patientName: string, amount: number) => {
     console.log('🔵 handleMarkPaid called with:', { patientId, patientName, amount });
@@ -451,13 +426,6 @@ export default function DoctorPaymentsScreen() {
                   <Text style={styles.actionsLabel}>Actions:</Text>
                   
                   <TouchableOpacity 
-                    style={styles.sendReminderButton}
-                        onPress={() => handleSendReminder(payment.patientId, payment.patientName)}
-                  >
-                    <Text style={styles.sendReminderButtonText}>Send Reminder</Text>
-                  </TouchableOpacity>
-                  
-                  <TouchableOpacity 
                     style={styles.markPaidButton}
                     onPress={() => {
                       console.log('🔘 Mark Paid button pressed for:', {
@@ -662,20 +630,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#374151',
     marginBottom: 5,
-  },
-  sendReminderButton: {
-    backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#3B82F6',
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    alignItems: 'center',
-  },
-  sendReminderButtonText: {
-    color: '#3B82F6',
-    fontSize: 14,
-    fontWeight: '600',
   },
   markPaidButton: {
     backgroundColor: '#3B82F6',

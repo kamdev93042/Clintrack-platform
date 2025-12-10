@@ -2,22 +2,23 @@ import React, { useState } from 'react';
 import { StyleSheet, View, Text, TextInput, TouchableOpacity, StatusBar, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AuthService from '../services/authService';
 
-export default function LoginScreen() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export default function ResetPasswordScreen() {
+  const params = useLocalSearchParams<{ email: string; otp: string }>();
+  const email = Array.isArray(params.email) ? params.email[0] : params.email;
+  const otp = Array.isArray(params.otp) ? params.otp[0] : params.otp;
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
-  const insets = useSafeAreaInsets();
-  
-  // Field-level error states
   const [errors, setErrors] = useState<{[key: string]: string}>({});
-  
-  // Clear error for a specific field
+  const insets = useSafeAreaInsets();
+
   const clearError = (fieldName: string) => {
     setErrors(prev => {
       const newErrors = { ...prev };
@@ -26,19 +27,47 @@ export default function LoginScreen() {
     });
   };
 
-  const handleLogin = async () => {
+  const validatePassword = (password: string): string => {
+    if (!password) {
+      return 'Password is required';
+    }
+    if (password.length < 6) {
+      return 'Password must be at least 6 characters long';
+    }
+    if (!/(?=.*[a-z])/.test(password)) {
+      return 'Password must contain at least one lowercase letter';
+    }
+    if (!/(?=.*[A-Z])/.test(password)) {
+      return 'Password must contain at least one uppercase letter';
+    }
+    if (!/(?=.*\d)/.test(password)) {
+      return 'Password must contain at least one number';
+    }
+    return '';
+  };
+
+  const handleResetPassword = async () => {
     // Clear previous errors
     setErrors({});
     
     // Validate fields
     const newErrors: {[key: string]: string} = {};
     
-    if (!email.trim()) {
-      newErrors.email = 'Email is required';
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      newErrors.newPassword = passwordError;
     }
     
-    if (!password) {
-      newErrors.password = 'Password is required';
+    if (!confirmPassword) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (newPassword !== confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+    
+    if (!email || !otp) {
+      Alert.alert('Error', 'Missing email or OTP. Please start the process again.');
+      router.push('/forgot-password');
+      return;
     }
     
     // If there are validation errors, set them and return
@@ -49,7 +78,7 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const result = await AuthService.login(email, password);
+      const result = await AuthService.resetPassword(email, otp, newPassword);
       
       if (result.success) {
         // Show success message after a brief delay
@@ -57,63 +86,19 @@ export default function LoginScreen() {
           setLoading(false);
           setShowSuccessMessage(true);
           
-          // Auto redirect to dashboard after showing success message
+          // Auto redirect to login after showing success message
           setTimeout(() => {
-            router.push('/doctor-dashboard');
+            router.replace('/login');
           }, 1500);
         }, 1000);
       } else {
         setLoading(false);
-        // Show field-level errors for invalid credentials
-        const errorMsg = result.message || 'Login failed';
-        if (errorMsg?.toLowerCase().includes('invalid') || 
-            errorMsg?.toLowerCase().includes('credentials') ||
-            errorMsg?.toLowerCase().includes('incorrect') ||
-            errorMsg?.toLowerCase().includes('wrong')) {
-          setErrors({
-            email: 'Invalid email or password',
-            password: 'Invalid email or password'
-          });
-        } else {
-          // For other errors, show alert
-          Alert.alert('Error', errorMsg);
-        }
+        Alert.alert('Error', result.message || 'Failed to reset password. Please try again.');
       }
     } catch (error: any) {
       setLoading(false);
-      // Show more helpful error message for network errors
-      if (error?.isNetworkError || error?.message?.includes('Network request failed')) {
-        Alert.alert(
-          'Network Error',
-          'Unable to connect to server.\n\n' +
-          'Please try:\n' +
-          '• Switch to WiFi instead of mobile data\n' +
-          '• Check your internet connection\n' +
-          '• Try again in a few moments\n\n' +
-          'If problem persists, contact support.',
-          [{ text: 'OK' }]
-        );
-      } else {
-        // Check if it's an invalid credentials error
-        const errorMessage = error?.message || error?.response?.data?.message || 'Login failed. Please try again.';
-        if (errorMessage?.toLowerCase().includes('invalid') || 
-            errorMessage?.toLowerCase().includes('credentials') ||
-            errorMessage?.toLowerCase().includes('incorrect') ||
-            errorMessage?.toLowerCase().includes('wrong') ||
-            error?.response?.status === 401) {
-          setErrors({
-            email: 'Invalid email or password',
-            password: 'Invalid email or password'
-          });
-        } else {
-          Alert.alert('Error', errorMessage);
-        }
-      }
+      Alert.alert('Error', error.message || 'Failed to reset password. Please try again.');
     }
-  };
-
-  const handleSignUp = () => {
-    router.push('/signup');
   };
 
   const handleBack = () => {
@@ -139,45 +124,33 @@ export default function LoginScreen() {
       </View>
 
       {/* Main Content */}
-      {!loading && !showSuccessMessage && (
+      {!loading && !showSuccessMessage ? (
         <View style={styles.mainContent}>
-          <Text style={styles.title}>Welcome Back</Text>
-        
-          {/* Email Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Email Address</Text>
-            <TextInput
-              style={[styles.input, errors.email && styles.inputError]}
-              placeholder="Enter your email"
-              placeholderTextColor="#9CA3AF"
-              value={email}
-              onChangeText={(text) => {
-                setEmail(text);
-                clearError('email');
-              }}
-              keyboardType="email-address"
-              autoCapitalize="none"
-              autoCorrect={false}
-            />
-            {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+          <View style={styles.iconContainer}>
+            <Ionicons name="lock-closed" size={64} color="#6B46C1" />
           </View>
-
-          {/* Password Input */}
+          <Text style={styles.title}>Reset Password</Text>
+          <Text style={styles.subtitle}>
+            Enter your new password below
+          </Text>
+          
+          {/* New Password Input */}
           <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Password</Text>
-            <View style={[styles.passwordContainer, errors.password && styles.inputError]}>
+            <Text style={styles.inputLabel}>New Password</Text>
+            <View style={[styles.passwordContainer, errors.newPassword && styles.inputError]}>
               <TextInput
                 style={styles.passwordInput}
-                placeholder="Enter your password"
+                placeholder="Enter new password"
                 placeholderTextColor="#9CA3AF"
-                value={password}
+                value={newPassword}
                 onChangeText={(text) => {
-                  setPassword(text);
-                  clearError('password');
+                  setNewPassword(text);
+                  clearError('newPassword');
                 }}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
+                editable={!loading}
               />
               <TouchableOpacity
                 onPress={() => setShowPassword(!showPassword)}
@@ -190,37 +163,58 @@ export default function LoginScreen() {
                 />
               </TouchableOpacity>
             </View>
-            {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-            
-            {/* Forgot Password Link */}
-            <TouchableOpacity 
-              onPress={() => router.push('/forgot-password')}
-              style={styles.forgotPasswordLink}
-            >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
-            </TouchableOpacity>
+            {errors.newPassword && <Text style={styles.errorText}>{errors.newPassword}</Text>}
+            <Text style={styles.passwordHint}>
+              Password must contain at least 6 characters, one uppercase letter, one lowercase letter, and one number
+            </Text>
           </View>
 
-          {/* Login Button */}
+          {/* Confirm Password Input */}
+          <View style={styles.inputContainer}>
+            <Text style={styles.inputLabel}>Confirm Password</Text>
+            <View style={[styles.passwordContainer, errors.confirmPassword && styles.inputError]}>
+              <TextInput
+                style={styles.passwordInput}
+                placeholder="Confirm new password"
+                placeholderTextColor="#9CA3AF"
+                value={confirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  clearError('confirmPassword');
+                }}
+                secureTextEntry={!showConfirmPassword}
+                autoCapitalize="none"
+                autoCorrect={false}
+                editable={!loading}
+              />
+              <TouchableOpacity
+                onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                style={styles.eyeIcon}
+              >
+                <Ionicons
+                  name={showConfirmPassword ? 'eye-off' : 'eye'}
+                  size={24}
+                  color="#9CA3AF"
+                />
+              </TouchableOpacity>
+            </View>
+            {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+          </View>
+
+          {/* Reset Password Button */}
           <TouchableOpacity 
-            style={[styles.loginButton, loading && styles.loginButtonDisabled]} 
-            onPress={handleLogin}
+            style={[styles.resetButton, loading && styles.resetButtonDisabled]} 
+            onPress={handleResetPassword}
             disabled={loading}
           >
-            <Text style={styles.loginButtonText}>
-              {loading ? 'Logging in...' : 'Login'}
-            </Text>
+            {loading ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={styles.resetButtonText}>Reset Password</Text>
+            )}
           </TouchableOpacity>
-
-          {/* Sign Up Link */}
-          <View style={styles.signUpContainer}>
-            <Text style={styles.signUpText}>Don't have an account? </Text>
-            <TouchableOpacity onPress={handleSignUp}>
-              <Text style={styles.signUpLink}>Sign up</Text>
-            </TouchableOpacity>
-          </View>
         </View>
-      )}
+      ) : null}
 
       {/* Loader Overlay */}
       {loading && (
@@ -235,12 +229,11 @@ export default function LoginScreen() {
           <View style={styles.successMessageContainer}>
             <Ionicons name="checkmark-circle" size={48} color="#10B981" />
             <Text style={styles.successMessageText}>
-              Successfully logged in
+              Password reset successfully
             </Text>
           </View>
         </View>
       )}
-
     </SafeAreaView>
   );
 }
@@ -292,12 +285,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 40,
   },
+  iconContainer: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
   title: {
     fontSize: 28,
     fontWeight: 'bold',
     color: '#6B46C1',
     textAlign: 'center',
+    marginBottom: 12,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: '#6B7280',
+    textAlign: 'center',
     marginBottom: 40,
+    lineHeight: 24,
   },
   inputContainer: {
     marginBottom: 20,
@@ -307,26 +311,6 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     color: '#374151',
     marginBottom: 8,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    fontSize: 16,
-    backgroundColor: 'white',
-    color: '#374151',
-  },
-  inputError: {
-    borderColor: '#EF4444',
-    borderWidth: 2,
-  },
-  errorText: {
-    color: '#EF4444',
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 4,
   },
   passwordContainer: {
     flexDirection: 'row',
@@ -347,46 +331,36 @@ const styles = StyleSheet.create({
     paddingRight: 16,
     paddingLeft: 8,
   },
-  loginButton: {
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  passwordHint: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  resetButton: {
     backgroundColor: '#6B46C1',
     borderRadius: 8,
     paddingVertical: 16,
     alignItems: 'center',
     marginTop: 20,
   },
-  loginButtonDisabled: {
+  resetButtonDisabled: {
     backgroundColor: '#9CA3AF',
   },
-  loginButtonText: {
+  resetButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
-  },
-  signUpContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginTop: 30,
-    marginBottom: 20,
-    paddingBottom: 20,
-  },
-  signUpText: {
-    fontSize: 16,
-    color: '#374151',
-  },
-  signUpLink: {
-    fontSize: 16,
-    color: '#6B46C1',
-    fontWeight: '600',
-  },
-  forgotPasswordLink: {
-    alignSelf: 'flex-end',
-    marginTop: 8,
-  },
-  forgotPasswordText: {
-    fontSize: 14,
-    color: '#6B46C1',
-    fontWeight: '500',
   },
   // Loader Overlay Styles
   loaderOverlay: {
@@ -412,3 +386,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

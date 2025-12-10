@@ -15,20 +15,13 @@ class ClinicOwnerAuthService {
 
       console.log('Registration API response:', response);
 
-      // Save token and user data
-      if (response.token) {
-        console.log('Registration successful, saving token:', response.token.substring(0, 20) + '...');
-        await this.saveToken(response.token);
-        await this.saveUser(response.clinicOwner);
-        ApiService.setToken(response.token);
-        console.log('Token saved and set in ApiService');
-      }
-
+      // New registration flow: returns registrationToken, not token yet
+      // Token will be returned after email verification
       return {
         success: true,
         message: response.message,
-        clinicOwner: response.clinicOwner,
-        token: response.token,
+        registrationToken: response.registrationToken,
+        email: response.email,
       };
     } catch (error) {
       console.error('Registration error details:', error);
@@ -203,6 +196,101 @@ class ClinicOwnerAuthService {
       await AsyncStorage.removeItem(USER_KEY);
     } catch (error) {
       console.error('Error clearing user:', error);
+    }
+  }
+
+  // Forgot password - Send OTP
+  async forgotPassword(email) {
+    try {
+      const response = await ApiService.post('/clinic-owner-auth/forgot-password', { email }, {
+        includeAuth: false,
+      });
+
+      return {
+        success: true,
+        message: response.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to send OTP',
+      };
+    }
+  }
+
+  // Verify OTP
+  async verifyOTP(email, otp) {
+    try {
+      const response = await ApiService.post('/clinic-owner-auth/verify-otp', { email, otp }, {
+        includeAuth: false,
+      });
+
+      return {
+        success: true,
+        message: response.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'OTP verification failed',
+      };
+    }
+  }
+
+  // Reset password
+  async resetPassword(email, otp, newPassword) {
+    try {
+      const response = await ApiService.post('/clinic-owner-auth/reset-password', { 
+        email, 
+        otp, 
+        newPassword 
+      }, {
+        includeAuth: false,
+      });
+
+      return {
+        success: true,
+        message: response.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Password reset failed',
+      };
+    }
+  }
+
+  // Complete registration - Verify OTP and create account
+  async completeRegistration(registrationToken, email, otp) {
+    try {
+      const response = await ApiService.post('/clinic-owner-auth/complete-registration', {
+        registrationToken,
+        email,
+        otp
+      }, {
+        includeAuth: false,
+      });
+
+      // Save token and user data after successful registration
+      if (response.token) {
+        console.log('Registration completed, saving token:', response.token.substring(0, 20) + '...');
+        await this.saveToken(response.token);
+        await this.saveUser(response.clinicOwner);
+        ApiService.setToken(response.token);
+        console.log('Token saved and set in ApiService');
+      }
+
+      return {
+        success: true,
+        message: response.message,
+        clinicOwner: response.clinicOwner,
+        token: response.token,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Registration completion failed',
+      };
     }
   }
 }

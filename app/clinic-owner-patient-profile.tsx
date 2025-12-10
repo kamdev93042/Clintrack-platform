@@ -5,12 +5,12 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode } from 'expo-av';
-import PatientService from '../services/patientService';
-import AuthService from '../services/authService';
-import SessionService from '../services/sessionService';
+import ClinicOwnerPatientService from '../services/clinicOwnerPatientService';
+import ClinicOwnerAuthService from '../services/clinicOwnerAuthService';
+import ClinicOwnerSessionService from '../services/clinicOwnerSessionService';
 import MediaService from '../services/mediaService';
 
-export default function DoctorPatientProfileScreen() {
+export default function ClinicOwnerPatientProfileScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams();
   
@@ -181,7 +181,7 @@ export default function DoctorPatientProfileScreen() {
 
   const initializeAuth = async () => {
     try {
-      await AuthService.initializeAuth();
+      await ClinicOwnerAuthService.initializeAuth();
       await loadPatient();
       await loadSessions();
     } catch (error) {
@@ -193,10 +193,10 @@ export default function DoctorPatientProfileScreen() {
   const loadPatient = async () => {
     try {
       setLoading(true);
-      const result = await PatientService.getPatient(id);
+      const result = await ClinicOwnerPatientService.getPatientDetails(id);
       
       if (result.success) {
-        setPatient(result.patient);
+        setPatient(result.data.patient);
       } else {
         Alert.alert('Error', result.message);
         router.back();
@@ -214,22 +214,16 @@ export default function DoctorPatientProfileScreen() {
     
     try {
       setLoadingSessions(true);
-      const result = await SessionService.getSessionsByPatient(id, { limit: 50 });
+      const result = await ClinicOwnerSessionService.getSessionsByPatient(id, { limit: 50 });
       
       if (result.success) {
         const sessionsData = result.data.sessions || [];
-        console.log('📋 Doctor loaded sessions:', sessionsData.length);
+        console.log('📋 Loaded sessions:', sessionsData.length);
         // Log media info for each session
         sessionsData.forEach((session: any, index: number) => {
           const photosCount = session.media?.photos?.length || 0;
           const videosCount = session.media?.videos?.length || 0;
           console.log(`  Session ${index + 1}: ${photosCount} photos, ${videosCount} videos`);
-          if (photosCount > 0 || videosCount > 0) {
-            console.log(`    Media data:`, {
-              photos: session.media?.photos,
-              videos: session.media?.videos
-            });
-          }
         });
         setSessions(sessionsData);
       } else {
@@ -247,23 +241,19 @@ export default function DoctorPatientProfileScreen() {
   };
 
   const handleHomePress = () => {
-    router.push('/doctor-dashboard');
+    router.push('/clinic-owner-dashboard');
   };
 
   const handlePatientsPress = () => {
-    router.push('/doctor-patient');
+    router.push('/clinic-owner-dashboard');
   };
 
-  const handleIncomePress = () => {
-    router.push('/doctor-income');
-  };
-
-  const handlePaymentsPress = () => {
-    router.push('/doctor-payments');
+  const handleDoctorsPress = () => {
+    router.push('/clinic-owner-doctors');
   };
 
   const handleProfilePress = () => {
-    router.push('/doctor-profile');
+    router.push('/clinic-owner-profile');
   };
 
   const handleAddNewSession = () => {
@@ -409,10 +399,10 @@ export default function DoctorPatientProfileScreen() {
         videos: selectedVideos,
       };
 
-      const result = await SessionService.createSession(id, sessionData, files as any);
+      const result = await ClinicOwnerSessionService.createSession(id, sessionData, files as any);
       
       if (result.success) {
-        console.log('✅ Doctor session created successfully:', result.session);
+        console.log('✅ Session created successfully:', result.session);
         // Log media info from created session
         if (result.session?.media) {
           const photosCount = result.session.media.photos?.length || 0;
@@ -724,7 +714,14 @@ export default function DoctorPatientProfileScreen() {
 
   // Format session data for display
   const formatSessionsForDisplay = (sessions: any[]) => {
-    return sessions.map((session: any, index: number) => {
+    // Sort sessions by date (most recent first)
+    const sortedSessions = [...sessions].sort((a, b) => {
+      const dateA = new Date(a.sessionDate).getTime();
+      const dateB = new Date(b.sessionDate).getTime();
+      return dateB - dateA; // Descending order (newest first)
+    });
+
+    return sortedSessions.map((session: any, index: number) => {
       const sessionDate = new Date(session.sessionDate);
       const today = new Date();
       const diffTime = today.getTime() - sessionDate.getTime();
@@ -749,20 +746,18 @@ export default function DoctorPatientProfileScreen() {
 
       // Debug logging for media
       if (photosCount > 0 || videosCount > 0) {
-        console.log(`📸 Doctor Session ${sessions.length - index} media:`, {
+        console.log(`📸 Session ${sortedSessions.length - index} media:`, {
           photosCount,
           videosCount,
           photoUrls: photoUrls.length,
           videoUrls: videoUrls.length,
-          hasMedia: !!session.media,
-          photoUrlsSample: photoUrls.slice(0, 2),
-          videoUrlsSample: videoUrls.slice(0, 2)
+          hasMedia: !!session.media
         });
       }
 
       return {
         id: session._id || session.id,
-        sessionNumber: sessions.length - index,
+        sessionNumber: sortedSessions.length - index,
         date: dateLabel,
         treatment: session.treatmentNotes,
         progress: session.progressNotes,
@@ -936,13 +931,9 @@ export default function DoctorPatientProfileScreen() {
           <Ionicons name="people" size={24} color="#3B82F6" />
           <Text style={[styles.navText, styles.navTextActive]}>Patients</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={handleIncomePress}>
-          <Ionicons name="wallet" size={24} color="#6B7280" />
-          <Text style={styles.navText}>Income</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.navItem} onPress={handlePaymentsPress}>
-          <Ionicons name="card" size={24} color="#6B7280" />
-          <Text style={styles.navText}>Payments</Text>
+        <TouchableOpacity style={styles.navItem} onPress={handleDoctorsPress}>
+          <Ionicons name="medical" size={24} color="#6B7280" />
+          <Text style={styles.navText}>Doctors</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navItem} onPress={handleProfilePress}>
           <Ionicons name="person" size={24} color="#6B7280" />

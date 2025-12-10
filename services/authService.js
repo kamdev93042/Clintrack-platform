@@ -46,20 +46,13 @@ class AuthService {
         });
       }
 
-      // Save token and user data
-      if (response.token) {
-        console.log('Registration successful, saving token:', response.token.substring(0, 20) + '...');
-        await this.saveToken(response.token);
-        await this.saveUser(response.doctor);
-        ApiService.setToken(response.token);
-        console.log('Token saved and set in ApiService');
-      }
-
+      // New registration flow: returns registrationToken, not token yet
+      // Token will be returned after email verification
       return {
         success: true,
         message: response.message,
-        doctor: response.doctor,
-        token: response.token,
+        registrationToken: response.registrationToken,
+        email: response.email,
       };
     } catch (error) {
       return {
@@ -158,6 +151,101 @@ class AuthService {
       return {
         success: false,
         message: error.message || 'Password change failed',
+      };
+    }
+  }
+
+  // Forgot password - Send OTP
+  async forgotPassword(email) {
+    try {
+      const response = await ApiService.post('/auth/forgot-password', { email }, {
+        includeAuth: false,
+      });
+
+      return {
+        success: true,
+        message: response.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to send OTP',
+      };
+    }
+  }
+
+  // Verify OTP
+  async verifyOTP(email, otp) {
+    try {
+      const response = await ApiService.post('/auth/verify-otp', { email, otp }, {
+        includeAuth: false,
+      });
+
+      return {
+        success: true,
+        message: response.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'OTP verification failed',
+      };
+    }
+  }
+
+  // Reset password
+  async resetPassword(email, otp, newPassword) {
+    try {
+      const response = await ApiService.post('/auth/reset-password', { 
+        email, 
+        otp, 
+        newPassword 
+      }, {
+        includeAuth: false,
+      });
+
+      return {
+        success: true,
+        message: response.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Password reset failed',
+      };
+    }
+  }
+
+  // Complete registration - Verify OTP and create account
+  async completeRegistration(registrationToken, email, otp) {
+    try {
+      const response = await ApiService.post('/auth/complete-registration', {
+        registrationToken,
+        email,
+        otp
+      }, {
+        includeAuth: false,
+      });
+
+      // Save token and user data after successful registration
+      if (response.token) {
+        console.log('Registration completed, saving token:', response.token.substring(0, 20) + '...');
+        await this.saveToken(response.token);
+        await this.saveUser(response.doctor);
+        ApiService.setToken(response.token);
+        console.log('Token saved and set in ApiService');
+      }
+
+      return {
+        success: true,
+        message: response.message,
+        doctor: response.doctor,
+        token: response.token,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Registration completion failed',
       };
     }
   }

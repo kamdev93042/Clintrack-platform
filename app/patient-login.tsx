@@ -12,17 +12,43 @@ export default function PatientLoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const insets = useSafeAreaInsets();
+  
+  // Field-level error states
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  
+  // Clear error for a specific field
+  const clearError = (fieldName: string) => {
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[fieldName];
+      return newErrors;
+    });
+  };
 
   const handleLogin = async () => {
-    if (!patientName || !mobileNumber) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
+    // Clear previous errors
+    setErrors({});
+    
+    // Validate fields
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!patientName.trim()) {
+      newErrors.patientName = 'Patient name is required';
     }
-
-    // Validate mobile number format (basic validation)
-    const mobileRegex = /^[0-9]{10}$/;
-    if (!mobileRegex.test(mobileNumber)) {
-      Alert.alert('Error', 'Please enter a valid 10-digit mobile number');
+    
+    if (!mobileNumber) {
+      newErrors.mobileNumber = 'Mobile number is required';
+    } else {
+      // Validate mobile number format
+      const mobileRegex = /^[0-9]{10}$/;
+      if (!mobileRegex.test(mobileNumber)) {
+        newErrors.mobileNumber = 'Please enter a valid 10-digit mobile number';
+      }
+    }
+    
+    // If there are validation errors, set them and return
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
@@ -43,11 +69,38 @@ export default function PatientLoginScreen() {
         }, 1000);
       } else {
         setLoading(false);
-        Alert.alert('Error', result.message || 'Login failed. Please try again.');
+        // Show field-level errors for invalid credentials
+        const errorMsg = result.message || 'Login failed';
+        if (errorMsg?.toLowerCase().includes('invalid') || 
+            errorMsg?.toLowerCase().includes('credentials') ||
+            errorMsg?.toLowerCase().includes('incorrect') ||
+            errorMsg?.toLowerCase().includes('wrong') ||
+            errorMsg?.toLowerCase().includes('not found')) {
+          setErrors({
+            patientName: 'Invalid name or mobile number',
+            mobileNumber: 'Invalid name or mobile number'
+          });
+        } else {
+          Alert.alert('Error', errorMsg);
+        }
       }
     } catch (error: any) {
       setLoading(false);
-      Alert.alert('Error', error?.message || 'Login failed. Please try again.');
+      // Check if it's an invalid credentials error
+      const errorMessage = error?.message || error?.response?.data?.message || 'Login failed. Please try again.';
+      if (errorMessage?.toLowerCase().includes('invalid') || 
+          errorMessage?.toLowerCase().includes('credentials') ||
+          errorMessage?.toLowerCase().includes('incorrect') ||
+          errorMessage?.toLowerCase().includes('wrong') ||
+          errorMessage?.toLowerCase().includes('not found') ||
+          error?.response?.status === 401) {
+        setErrors({
+          patientName: 'Invalid name or mobile number',
+          mobileNumber: 'Invalid name or mobile number'
+        });
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
     }
   };
 
@@ -83,29 +136,37 @@ export default function PatientLoginScreen() {
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Patient Name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.patientName && styles.inputError]}
               placeholder="Enter your name"
               placeholderTextColor="#9CA3AF"
               value={patientName}
-              onChangeText={setPatientName}
+              onChangeText={(text) => {
+                setPatientName(text);
+                clearError('patientName');
+              }}
               autoCapitalize="words"
               autoCorrect={false}
             />
+            {errors.patientName && <Text style={styles.errorText}>{errors.patientName}</Text>}
           </View>
 
           {/* Mobile Number Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Mobile Number</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.mobileNumber && styles.inputError]}
               placeholder="Enter your 10-digit mobile number"
               placeholderTextColor="#9CA3AF"
               value={mobileNumber}
-              onChangeText={setMobileNumber}
+              onChangeText={(text) => {
+                setMobileNumber(text);
+                clearError('mobileNumber');
+              }}
               keyboardType="phone-pad"
               maxLength={10}
               autoCorrect={false}
             />
+            {errors.mobileNumber && <Text style={styles.errorText}>{errors.mobileNumber}</Text>}
           </View>
 
           {/* Login Button */}
@@ -228,6 +289,16 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     fontSize: 16,
     backgroundColor: 'white',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
   loginButton: {
     backgroundColor: '#6B46C1',

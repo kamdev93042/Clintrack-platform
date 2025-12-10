@@ -18,28 +18,131 @@ export default function ClinicOwnerSignUpScreen() {
   const [loading, setLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const insets = useSafeAreaInsets();
+  
+  // Field-level error states
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
+
+  // Validation functions
+  const validateEmail = (email: string): string => {
+    if (!email) return 'Email is required';
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return 'Please enter a valid email address';
+    return '';
+  };
+
+  const validatePhoneNumber = (phone: string): string => {
+    if (!phone) return 'Phone number is required';
+    if (!/^\d+$/.test(phone)) return 'Phone number must contain only digits';
+    if (phone.length !== 10) return 'Phone number must be exactly 10 digits';
+    return '';
+  };
+
+  const validatePassword = (pwd: string): string => {
+    if (!pwd) return 'Password is required';
+    if (pwd.length < 6) return 'Password must be at least 6 characters';
+    return '';
+  };
+
+  const validatePincode = (pin: string): string => {
+    if (!pin) return 'Pincode is required';
+    if (!/^\d+$/.test(pin)) return 'Pincode must contain only digits';
+    if (pin.length !== 6) return 'Pincode must be exactly 6 digits';
+    return '';
+  };
+
+  // Clear error for a specific field
+  const clearError = (fieldName: string) => {
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[fieldName];
+      return newErrors;
+    });
+  };
+
+  // Handle backend validation errors
+  const handleBackendErrors = (error: any) => {
+    const newErrors: {[key: string]: string} = {};
+    
+    // Check if error has validation errors array
+    if (error?.errors && Array.isArray(error.errors)) {
+      error.errors.forEach((err: any) => {
+        const field = err.path || err.param || err.field;
+        const message = err.msg || err.message || 'Invalid value';
+        
+        // Map backend field names to frontend field names
+        const fieldMap: {[key: string]: string} = {
+          'clinicName': 'clinicName',
+          'ownerName': 'ownerName',
+          'email': 'email',
+          'phoneNumber': 'phoneNumber',
+          'address': 'address',
+          'pinCode': 'pincode',
+          'pincode': 'pincode',
+          'password': 'password',
+        };
+        
+        const frontendField = fieldMap[field] || field;
+        newErrors[frontendField] = message;
+      });
+    } else if (error?.message) {
+      // If single error message, try to extract field name
+      const message = error.message.toLowerCase();
+      if (message.includes('email')) {
+        newErrors.email = error.message;
+      } else if (message.includes('phone')) {
+        newErrors.phoneNumber = error.message;
+      } else if (message.includes('password')) {
+        newErrors.password = error.message;
+      } else if (message.includes('pincode') || message.includes('pin code')) {
+        newErrors.pincode = error.message;
+      } else if (message.includes('clinic name') || message.includes('clinicname')) {
+        newErrors.clinicName = error.message;
+      } else if (message.includes('owner name') || message.includes('ownername')) {
+        newErrors.ownerName = error.message;
+      } else if (message.includes('address')) {
+        newErrors.address = error.message;
+      }
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+    }
+  };
 
   const handleSignUp = async () => {
-    if (!clinicName || !ownerName || !email || !phoneNumber || !address || !pincode || !password) {
-      Alert.alert('Error', 'Please fill in all required fields');
-      return;
+    // Clear previous errors
+    setErrors({});
+    
+    // Validate all fields
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!clinicName.trim()) {
+      newErrors.clinicName = 'Clinic name is required';
     }
-
-    if (phoneNumber.length !== 10) {
-      Alert.alert('Error', 'Phone number must be exactly 10 digits');
-      return;
+    
+    if (!ownerName.trim()) {
+      newErrors.ownerName = 'Owner name is required';
     }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
+    
+    const emailError = validateEmail(email);
+    if (emailError) newErrors.email = emailError;
+    
+    const phoneError = validatePhoneNumber(phoneNumber);
+    if (phoneError) newErrors.phoneNumber = phoneError;
+    
+    if (!address.trim()) {
+      newErrors.address = 'Address is required';
     }
-
-    // Validate pincode (6 digits)
-    if (pincode.length !== 6 || !/^\d+$/.test(pincode)) {
-      Alert.alert('Error', 'Pincode must be exactly 6 digits');
+    
+    const pincodeError = validatePincode(pincode);
+    if (pincodeError) newErrors.pincode = pincodeError;
+    
+    const passwordError = validatePassword(password);
+    if (passwordError) newErrors.password = passwordError;
+    
+    // If there are validation errors, set them and return
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
@@ -60,31 +163,34 @@ export default function ClinicOwnerSignUpScreen() {
       const result = await ClinicOwnerAuthService.register(clinicOwnerData);
       
       if (result.success) {
+        // Navigate to email verification screen
         setLoading(false);
-        setShowSuccessMessage(true);
-        
-        // Auto redirect to login after showing success message
-        setTimeout(() => {
-          router.push('/clinic-owner-login');
-        }, 1500);
+        router.push({
+          pathname: '/clinic-owner-verify-email',
+          params: { 
+            email: email.trim(),
+            registrationToken: result.registrationToken 
+          }
+        });
       } else {
         setLoading(false);
-        console.error('Registration failed:', result);
-        Alert.alert('Error', result.message || 'Registration failed. Please try again.');
+        // Handle backend validation errors
+        if (result.message) {
+          handleBackendErrors({ message: result.message });
+        } else {
+          Alert.alert('Error', result.message || 'Registration failed');
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       setLoading(false);
-      console.error('Registration error:', error);
-      let errorMessage = 'Registration failed. Please check your connection and try again.';
-      
-      if (error instanceof Error) {
-        errorMessage = error.message;
-      } else if (typeof error === 'object' && error !== null) {
-        const err = error as { message?: string; response?: { data?: { message?: string } } };
-        errorMessage = err?.message || err?.response?.data?.message || errorMessage;
+      // Handle API errors
+      if (error?.response?.data) {
+        handleBackendErrors(error.response.data);
+      } else if (error?.message) {
+        handleBackendErrors({ message: error.message });
+      } else {
+        Alert.alert('Error', 'Registration failed. Please try again.');
       }
-      
-      Alert.alert('Error', errorMessage);
     }
   };
 
@@ -128,101 +234,128 @@ export default function ClinicOwnerSignUpScreen() {
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Clinic Name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.clinicName && styles.inputError]}
               placeholder="Enter clinic name"
               placeholderTextColor="#9CA3AF"
               value={clinicName}
-              onChangeText={setClinicName}
+              onChangeText={(text) => {
+                setClinicName(text);
+                clearError('clinicName');
+              }}
               autoCapitalize="words"
               autoCorrect={false}
             />
+            {errors.clinicName && <Text style={styles.errorText}>{errors.clinicName}</Text>}
           </View>
 
           {/* Owner Name Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Owner Name</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.ownerName && styles.inputError]}
               placeholder="Enter owner full name"
               placeholderTextColor="#9CA3AF"
               value={ownerName}
-              onChangeText={setOwnerName}
+              onChangeText={(text) => {
+                setOwnerName(text);
+                clearError('ownerName');
+              }}
               autoCapitalize="words"
               autoCorrect={false}
             />
+            {errors.ownerName && <Text style={styles.errorText}>{errors.ownerName}</Text>}
           </View>
 
           {/* Email Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Email Address</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.email && styles.inputError]}
               placeholder="your@email.com"
               placeholderTextColor="#9CA3AF"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                clearError('email');
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
             />
+            {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
           </View>
 
           {/* Phone Number Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Phone Number</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.phoneNumber && styles.inputError]}
               placeholder="Enter 10-digit mobile number"
               placeholderTextColor="#9CA3AF"
               value={phoneNumber}
-              onChangeText={setPhoneNumber}
+              onChangeText={(text) => {
+                setPhoneNumber(text);
+                clearError('phoneNumber');
+              }}
               keyboardType="phone-pad"
               maxLength={10}
               autoCorrect={false}
             />
+            {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
           </View>
 
           {/* Address Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Clinic Address</Text>
             <TextInput
-              style={[styles.input, styles.textArea]}
+              style={[styles.input, styles.textArea, errors.address && styles.inputError]}
               placeholder="Enter clinic address"
               placeholderTextColor="#9CA3AF"
               value={address}
-              onChangeText={setAddress}
+              onChangeText={(text) => {
+                setAddress(text);
+                clearError('address');
+              }}
               multiline
               numberOfLines={3}
               autoCapitalize="sentences"
               autoCorrect={false}
             />
+            {errors.address && <Text style={styles.errorText}>{errors.address}</Text>}
           </View>
 
           {/* Pincode Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Pincode</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.pincode && styles.inputError]}
               placeholder="Enter 6-digit pincode"
               placeholderTextColor="#9CA3AF"
               value={pincode}
-              onChangeText={setPincode}
+              onChangeText={(text) => {
+                setPincode(text);
+                clearError('pincode');
+              }}
               keyboardType="numeric"
               maxLength={6}
               autoCorrect={false}
             />
+            {errors.pincode && <Text style={styles.errorText}>{errors.pincode}</Text>}
           </View>
 
           {/* Password Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.passwordContainer}>
+            <View style={[styles.passwordContainer, errors.password && styles.inputError]}>
               <TextInput
                 style={styles.passwordInput}
                 placeholder="Enter your password"
                 placeholderTextColor="#9CA3AF"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  clearError('password');
+                }}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
                 autoCorrect={false}
@@ -238,6 +371,7 @@ export default function ClinicOwnerSignUpScreen() {
                 />
               </TouchableOpacity>
             </View>
+            {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
           </View>
 
           {/* Create Account Button */}
@@ -355,6 +489,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: 'white',
     color: '#374151',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
   passwordContainer: {
     flexDirection: 'row',

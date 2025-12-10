@@ -13,23 +13,45 @@ export default function ClinicOwnerLoginScreen() {
   const [loading, setLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const insets = useSafeAreaInsets();
+  
+  // Field-level error states
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
+  
+  // Clear error for a specific field
+  const clearError = (fieldName: string) => {
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[fieldName];
+      return newErrors;
+    });
+  };
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please fill in all fields');
-      return;
+    // Clear previous errors
+    setErrors({});
+    
+    // Validate fields
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!email.trim()) {
+      newErrors.email = 'Email is required';
+    } else {
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        newErrors.email = 'Please enter a valid email address';
+      }
     }
-
-    // Validate email format
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert('Error', 'Please enter a valid email address');
-      return;
+    
+    if (!password) {
+      newErrors.password = 'Password is required';
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters long';
     }
-
-    // Validate password (minimum 6 characters)
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+    
+    // If there are validation errors, set them and return
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
@@ -47,11 +69,36 @@ export default function ClinicOwnerLoginScreen() {
         }, 1500);
       } else {
         setLoading(false);
-        Alert.alert('Error', result.message || 'Login failed. Please try again.');
+        // Show field-level errors for invalid credentials
+        const errorMsg = result.message || 'Login failed';
+        if (errorMsg?.toLowerCase().includes('invalid') || 
+            errorMsg?.toLowerCase().includes('credentials') ||
+            errorMsg?.toLowerCase().includes('incorrect') ||
+            errorMsg?.toLowerCase().includes('wrong')) {
+          setErrors({
+            email: 'Invalid email or password',
+            password: 'Invalid email or password'
+          });
+        } else {
+          Alert.alert('Error', errorMsg);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       setLoading(false);
-      Alert.alert('Error', 'Login failed. Please try again.');
+      // Check if it's an invalid credentials error
+      const errorMessage = error?.message || error?.response?.data?.message || 'Login failed. Please try again.';
+      if (errorMessage?.toLowerCase().includes('invalid') || 
+          errorMessage?.toLowerCase().includes('credentials') ||
+          errorMessage?.toLowerCase().includes('incorrect') ||
+          errorMessage?.toLowerCase().includes('wrong') ||
+          error?.response?.status === 401) {
+        setErrors({
+          email: 'Invalid email or password',
+          password: 'Invalid email or password'
+        });
+      } else {
+        Alert.alert('Error', errorMessage);
+      }
     }
   };
 
@@ -90,27 +137,34 @@ export default function ClinicOwnerLoginScreen() {
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Email Address</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, errors.email && styles.inputError]}
               placeholder="Enter your email"
               placeholderTextColor="#9CA3AF"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={(text) => {
+                setEmail(text);
+                clearError('email');
+              }}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
             />
+            {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
           </View>
 
           {/* Password Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Password</Text>
-            <View style={styles.passwordContainer}>
+            <View style={[styles.passwordContainer, errors.password && styles.inputError]}>
               <TextInput
                 style={styles.passwordInput}
                 placeholder="Enter your password"
                 placeholderTextColor="#9CA3AF"
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  clearError('password');
+                }}
                 secureTextEntry={!showPassword}
                 autoCorrect={false}
                 autoCapitalize="none"
@@ -126,6 +180,15 @@ export default function ClinicOwnerLoginScreen() {
                 />
               </TouchableOpacity>
             </View>
+            {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+            
+            {/* Forgot Password Link */}
+            <TouchableOpacity 
+              onPress={() => router.push('/clinic-owner-forgot-password')}
+              style={styles.forgotPasswordLink}
+            >
+              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+            </TouchableOpacity>
           </View>
 
           {/* Login Button */}
@@ -167,6 +230,7 @@ export default function ClinicOwnerLoginScreen() {
           </View>
         </View>
       )}
+
     </SafeAreaView>
   );
 }
@@ -243,6 +307,16 @@ const styles = StyleSheet.create({
     fontSize: 16,
     backgroundColor: 'white',
   },
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
   passwordContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -293,6 +367,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#6B46C1',
     fontWeight: '600',
+  },
+  forgotPasswordLink: {
+    alignSelf: 'flex-end',
+    marginTop: 8,
+  },
+  forgotPasswordText: {
+    fontSize: 14,
+    color: '#6B46C1',
+    fontWeight: '500',
   },
   // Loader Overlay Styles
   loaderOverlay: {

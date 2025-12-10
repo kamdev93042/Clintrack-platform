@@ -31,6 +31,9 @@ export default function DoctorPatientScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  
+  // Field-level error states
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
 
   const genders = ['Male', 'Female', 'Other'];
 
@@ -97,6 +100,12 @@ export default function DoctorPatientScreen() {
   };
 
   const handleAddPatient = () => {
+    // Set today's date as default
+    const today = new Date();
+    setSelectedDate(today);
+    setCurrentMonth(today.getMonth());
+    setCurrentYear(today.getFullYear());
+    setStartDate(`${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`);
     setShowAddPatientModal(true);
   };
 
@@ -112,16 +121,142 @@ export default function DoctorPatientScreen() {
     setSessionFee('800');
     setStartDate('');
     setAdditionalNotes('');
+    // Clear errors
+    setErrors({});
+  };
+  
+  // Validation functions
+  const validateEmail = (email: string): string => {
+    if (!email) return ''; // Email is optional
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) return 'Please enter a valid email address';
+    return '';
+  };
+
+  const validatePhoneNumber = (phone: string): string => {
+    if (!phone) return 'Phone number is required';
+    if (!/^\d+$/.test(phone)) return 'Phone number must contain only digits';
+    if (phone.length !== 10) return 'Phone number must be exactly 10 digits';
+    return '';
+  };
+
+  const validateAge = (ageStr: string): string => {
+    if (!ageStr) return 'Age is required';
+    const age = parseInt(ageStr);
+    if (isNaN(age)) return 'Age must be a number';
+    if (age < 0 || age > 150) return 'Age must be between 0 and 150';
+    return '';
+  };
+
+  const validateSessionFee = (fee: string): string => {
+    if (!fee) return 'Session fee is required';
+    const feeNum = parseFloat(fee);
+    if (isNaN(feeNum)) return 'Session fee must be a number';
+    if (feeNum < 0) return 'Session fee cannot be negative';
+    return '';
+  };
+
+  // Clear error for a specific field
+  const clearError = (fieldName: string) => {
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[fieldName];
+      return newErrors;
+    });
+  };
+
+  // Handle backend validation errors
+  const handleBackendErrors = (error: any) => {
+    const newErrors: {[key: string]: string} = {};
+    
+    // Check if error has validation errors array
+    if (error?.errors && Array.isArray(error.errors)) {
+      error.errors.forEach((err: any) => {
+        const field = err.path || err.param || err.field;
+        const message = err.msg || err.message || 'Invalid value';
+        
+        // Map backend field names to frontend field names
+        const fieldMap: {[key: string]: string} = {
+          'name': 'patientName',
+          'patientName': 'patientName',
+          'age': 'age',
+          'gender': 'gender',
+          'phoneNumber': 'phoneNumber',
+          'email': 'email',
+          'medicalCondition': 'medicalCondition',
+          'sessionFee': 'sessionFee',
+          'startDate': 'startDate',
+        };
+        
+        const frontendField = fieldMap[field] || field;
+        newErrors[frontendField] = message;
+      });
+    } else if (error?.message) {
+      // If single error message, try to extract field name
+      const message = error.message.toLowerCase();
+      if (message.includes('email')) {
+        newErrors.email = error.message;
+      } else if (message.includes('phone')) {
+        newErrors.phoneNumber = error.message;
+      } else if (message.includes('name')) {
+        newErrors.patientName = error.message;
+      } else if (message.includes('age')) {
+        newErrors.age = error.message;
+      } else if (message.includes('gender')) {
+        newErrors.gender = error.message;
+      } else if (message.includes('condition') || message.includes('medical')) {
+        newErrors.medicalCondition = error.message;
+      } else if (message.includes('session fee') || message.includes('sessionfee')) {
+        newErrors.sessionFee = error.message;
+      } else if (message.includes('date') || message.includes('start date')) {
+        newErrors.startDate = error.message;
+      }
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+    }
   };
 
   const handleSubmitPatient = async () => {
-    if (!patientName || !age || !gender || !phoneNumber || !medicalCondition) {
-      Alert.alert('Error', 'Please fill in all required fields.');
-      return;
+    // Clear previous errors
+    setErrors({});
+    
+    // Validate all fields
+    const newErrors: {[key: string]: string} = {};
+    
+    if (!patientName.trim()) {
+      newErrors.patientName = 'Patient name is required';
     }
-
-    if (phoneNumber.length !== 10) {
-      Alert.alert('Error', 'Phone number must be exactly 10 digits.');
+    
+    const ageError = validateAge(age);
+    if (ageError) newErrors.age = ageError;
+    
+    if (!gender) {
+      newErrors.gender = 'Gender is required';
+    }
+    
+    const phoneError = validatePhoneNumber(phoneNumber);
+    if (phoneError) newErrors.phoneNumber = phoneError;
+    
+    const emailError = validateEmail(email);
+    if (emailError) newErrors.email = emailError;
+    
+    if (!medicalCondition.trim()) {
+      newErrors.medicalCondition = 'Medical condition is required';
+    }
+    
+    const sessionFeeError = validateSessionFee(sessionFee);
+    if (sessionFeeError) newErrors.sessionFee = sessionFeeError;
+    
+    // Start date is already set to today by default, but validate if user cleared it
+    if (!startDate) {
+      newErrors.startDate = 'Start date is required';
+    }
+    
+    // If there are validation errors, set them and return
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
     
@@ -156,10 +291,22 @@ export default function DoctorPatientScreen() {
         // Reload patients list
         await loadPatients();
       } else {
-        Alert.alert('Error', result.message);
+        // Handle backend validation errors
+        if (result.message) {
+          handleBackendErrors({ message: result.message });
+        } else {
+          Alert.alert('Error', result.message || 'Failed to add patient');
+        }
       }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to add patient. Please try again.');
+    } catch (error: any) {
+      // Handle API errors
+      if (error?.response?.data) {
+        handleBackendErrors(error.response.data);
+      } else if (error?.message) {
+        handleBackendErrors({ message: error.message });
+      } else {
+        Alert.alert('Error', 'Failed to add patient. Please try again.');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -168,6 +315,7 @@ export default function DoctorPatientScreen() {
   const handleGenderSelect = (selectedGender: string) => {
     setGender(selectedGender);
     setShowGenderModal(false);
+    clearError('gender');
   };
 
   const handleDateSelect = (day: number) => {
@@ -175,6 +323,7 @@ export default function DoctorPatientScreen() {
     setSelectedDate(newDate);
     setStartDate(`${day.toString().padStart(2, '0')}-${(currentMonth + 1).toString().padStart(2, '0')}-${currentYear}`);
     setShowDatePicker(false);
+    clearError('startDate');
   };
 
   const handleMonthChange = (direction: 'prev' | 'next') => {
@@ -202,6 +351,7 @@ export default function DoctorPatientScreen() {
     setCurrentYear(today.getFullYear());
     setStartDate(`${today.getDate().toString().padStart(2, '0')}-${(today.getMonth() + 1).toString().padStart(2, '0')}-${today.getFullYear()}`);
     setShowDatePicker(false);
+    clearError('startDate');
   };
 
   const handleClearDate = () => {
@@ -445,13 +595,17 @@ export default function DoctorPatientScreen() {
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Patient Name</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, errors.patientName && styles.inputError]}
                     placeholder="Enter patient name"
                     placeholderTextColor="#9CA3AF"
                     value={patientName}
-                    onChangeText={setPatientName}
+                    onChangeText={(text) => {
+                      setPatientName(text);
+                      clearError('patientName');
+                    }}
                     autoCapitalize="words"
                   />
+                  {errors.patientName && <Text style={styles.errorText}>{errors.patientName}</Text>}
                 </View>
 
                 {/* Age and Gender Row */}
@@ -459,26 +613,33 @@ export default function DoctorPatientScreen() {
                   <View style={[styles.inputContainer, styles.halfWidth]}>
                     <Text style={styles.inputLabel}>Age</Text>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, errors.age && styles.inputError]}
                       placeholder="Age"
                       placeholderTextColor="#9CA3AF"
                       value={age}
-                      onChangeText={setAge}
+                      onChangeText={(text) => {
+                        setAge(text);
+                        clearError('age');
+                      }}
                       keyboardType="numeric"
                     />
+                    {errors.age && <Text style={styles.errorText}>{errors.age}</Text>}
                   </View>
                   <View style={[styles.inputContainer, styles.halfWidth, styles.dropdownContainer]}>
                     <Text style={styles.inputLabel}>Gender</Text>
                     <TouchableOpacity 
-                      style={styles.input}
-                      onPress={() => setShowGenderModal(!showGenderModal)}
+                      style={[styles.input, errors.gender && styles.inputError]}
+                      onPress={() => {
+                        setShowGenderModal(!showGenderModal);
+                        clearError('gender');
+                      }}
                     >
                       <Text style={[styles.inputText, gender ? styles.inputTextSelected : styles.inputTextPlaceholder]}>
                         {gender || "Select"}
                       </Text>
                       <Ionicons name={showGenderModal ? "chevron-up" : "chevron-down"} size={20} color="#9CA3AF" />
                     </TouchableOpacity>
-                    
+                    {errors.gender && <Text style={styles.errorText}>{errors.gender}</Text>}
                   </View>
                 </View>
 
@@ -486,40 +647,53 @@ export default function DoctorPatientScreen() {
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Phone Number</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, errors.phoneNumber && styles.inputError]}
                     placeholder="+91 XXXXX XXXXX"
                     placeholderTextColor="#9CA3AF"
                     value={phoneNumber}
-                    onChangeText={setPhoneNumber}
+                    onChangeText={(text) => {
+                      setPhoneNumber(text);
+                      clearError('phoneNumber');
+                    }}
                     keyboardType="phone-pad"
+                    maxLength={10}
                   />
+                  {errors.phoneNumber && <Text style={styles.errorText}>{errors.phoneNumber}</Text>}
                 </View>
 
                 {/* Email */}
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Email (Optional)</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, errors.email && styles.inputError]}
                     placeholder="patient@email.com"
                     placeholderTextColor="#9CA3AF"
                     value={email}
-                    onChangeText={setEmail}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      clearError('email');
+                    }}
                     keyboardType="email-address"
                     autoCapitalize="none"
                   />
+                  {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
                 </View>
 
                 {/* Medical Condition */}
                 <View style={styles.inputContainer}>
                   <Text style={styles.inputLabel}>Medical Condition</Text>
                   <TextInput
-                    style={styles.input}
+                    style={[styles.input, errors.medicalCondition && styles.inputError]}
                     placeholder="e.g., Lower Back Pain, Shoulder Injury"
                     placeholderTextColor="#9CA3AF"
                     value={medicalCondition}
-                    onChangeText={setMedicalCondition}
+                    onChangeText={(text) => {
+                      setMedicalCondition(text);
+                      clearError('medicalCondition');
+                    }}
                     autoCapitalize="words"
                   />
+                  {errors.medicalCondition && <Text style={styles.errorText}>{errors.medicalCondition}</Text>}
                 </View>
 
                 {/* Session Fee and Start Date Row */}
@@ -527,26 +701,33 @@ export default function DoctorPatientScreen() {
                   <View style={[styles.inputContainer, styles.halfWidth]}>
                     <Text style={styles.inputLabel}>Session Fee (₹)</Text>
                     <TextInput
-                      style={styles.input}
+                      style={[styles.input, errors.sessionFee && styles.inputError]}
                       placeholder="800"
                       placeholderTextColor="#9CA3AF"
                       value={sessionFee}
-                      onChangeText={setSessionFee}
+                      onChangeText={(text) => {
+                        setSessionFee(text);
+                        clearError('sessionFee');
+                      }}
                       keyboardType="numeric"
                     />
+                    {errors.sessionFee && <Text style={styles.errorText}>{errors.sessionFee}</Text>}
                   </View>
         <View style={[styles.inputContainer, styles.halfWidth, styles.dropdownContainer]}>
           <Text style={styles.inputLabel}>Start Date</Text>
           <TouchableOpacity 
-            style={styles.dateInputContainer}
-            onPress={() => setShowDatePicker(!showDatePicker)}
+            style={[styles.dateInputContainer, errors.startDate && styles.inputError]}
+            onPress={() => {
+              setShowDatePicker(!showDatePicker);
+              clearError('startDate');
+            }}
           >
             <Text style={[styles.dateInput, startDate ? styles.dateInputSelected : styles.dateInputPlaceholder]}>
               {startDate || "dd-mm-yyyy"}
             </Text>
             <Ionicons name={showDatePicker ? "chevron-up" : "chevron-down"} size={20} color="#9CA3AF" />
           </TouchableOpacity>
-          
+          {errors.startDate && <Text style={styles.errorText}>{errors.startDate}</Text>}
                   </View>
                 </View>
 
@@ -1043,6 +1224,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
   },
   inputText: {
     fontSize: 16,

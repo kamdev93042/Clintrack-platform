@@ -16,6 +16,8 @@ export default function ClinicOwnerAddDoctorScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [addingDoctorId, setAddingDoctorId] = useState<string | null>(null);
+  const [specialId, setSpecialId] = useState('');
+  const [specialIdError, setSpecialIdError] = useState('');
 
   useEffect(() => {
     initializeAuth();
@@ -67,6 +69,8 @@ export default function ClinicOwnerAddDoctorScreen() {
   const handleCloseAddDoctor = () => {
     setShowAddDoctorModal(false);
     setSelectedDoctor(null);
+    setSpecialId('');
+    setSpecialIdError('');
     // Only clear addingDoctorId if doctor wasn't successfully added
     if (selectedDoctor && !doctors.find(d => d.id === selectedDoctor.id)?.isAlreadyAdded) {
       setAddingDoctorId(null);
@@ -74,8 +78,22 @@ export default function ClinicOwnerAddDoctorScreen() {
   };
 
   const handleSubmitDoctor = async () => {
-    if (!selectedDoctor || !selectedDoctor.email) {
-      Alert.alert('Error', 'Doctor email is required.');
+    // Clear previous error
+    setSpecialIdError('');
+    
+    // Validate special ID
+    if (!specialId || specialId.trim() === '') {
+      setSpecialIdError('Special ID is required');
+      return;
+    }
+
+    if (specialId.length !== 6 || !/^\d+$/.test(specialId)) {
+      setSpecialIdError('Special ID must be exactly 6 digits');
+      return;
+    }
+
+    if (!selectedDoctor) {
+      Alert.alert('Error', 'Doctor information is required.');
       return;
     }
 
@@ -89,7 +107,7 @@ export default function ClinicOwnerAddDoctorScreen() {
     setSubmitting(true);
     
     try {
-      const result = await ClinicOwnerDoctorService.addDoctor(selectedDoctor.email);
+      const result = await ClinicOwnerDoctorService.addDoctor(specialId, selectedDoctor.id);
       
       if (result.success) {
         setSubmitting(false);
@@ -113,14 +131,32 @@ export default function ClinicOwnerAddDoctorScreen() {
             ? { ...d, isAlreadyAdded: false }
             : d
         ));
-        // Show custom error popup with the message
-        setErrorMessage(result.message || 'Failed to add doctor');
-        // Auto-hide after 5 seconds
-        setTimeout(() => {
-          setErrorMessage(null);
-        }, 5000);
+        
+        // Check if error is related to special ID - show inline error
+        const errorMsg = result.message || 'Failed to add doctor';
+        const lowerErrorMsg = errorMsg.toLowerCase();
+        
+        // All these cases should show error next to the special ID field
+        if (lowerErrorMsg.includes('special id') || 
+            lowerErrorMsg.includes('invalid') ||
+            lowerErrorMsg.includes('does not match') ||
+            lowerErrorMsg.includes('no doctor found') ||
+            lowerErrorMsg.includes('format')) {
+          setSpecialIdError(errorMsg);
+        } else if (lowerErrorMsg.includes('already added') || 
+                   lowerErrorMsg.includes('already used')) {
+          // Show error popup for "already added" cases
+          setErrorMessage(errorMsg);
+          // Auto-hide after 5 seconds
+          setTimeout(() => {
+            setErrorMessage(null);
+          }, 5000);
+        } else {
+          // For other errors, show inline error
+          setSpecialIdError(errorMsg);
+        }
       }
-    } catch (error) {
+    } catch (error: any) {
       setSubmitting(false);
       setAddingDoctorId(null); // Clear adding state on error
       // Revert the UI change if adding failed
@@ -129,7 +165,30 @@ export default function ClinicOwnerAddDoctorScreen() {
           ? { ...d, isAlreadyAdded: false }
           : d
       ));
-      Alert.alert('Error', 'Failed to add doctor. Please try again.');
+      
+      // Extract error message from API response
+      const errorMsg = error?.response?.data?.message || error?.message || 'Failed to add doctor. Please try again.';
+      const lowerErrorMsg = errorMsg.toLowerCase();
+      
+      // Check if error is related to special ID - show inline error
+      if (lowerErrorMsg.includes('special id') || 
+          lowerErrorMsg.includes('invalid') ||
+          lowerErrorMsg.includes('does not match') ||
+          lowerErrorMsg.includes('no doctor found') ||
+          lowerErrorMsg.includes('format')) {
+        setSpecialIdError(errorMsg);
+      } else if (lowerErrorMsg.includes('already added') || 
+                 lowerErrorMsg.includes('already used')) {
+        // Show error popup for "already added" cases
+        setErrorMessage(errorMsg);
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+          setErrorMessage(null);
+        }, 5000);
+      } else {
+        // For network errors or other errors, show alert
+        Alert.alert('Error', errorMsg);
+      }
     }
   };
 
@@ -224,10 +283,6 @@ export default function ClinicOwnerAddDoctorScreen() {
                     <Ionicons name="location-outline" size={14} color="#6B7280" />
                     <Text style={styles.doctorDetailText}>{item.pinCode}</Text>
                   </View>
-                  <View style={styles.doctorDetailsRow}>
-                    <Ionicons name="key-outline" size={14} color="#6B46C1" />
-                    <Text style={[styles.doctorDetailText, styles.specialIdText]}>Special ID: {item.specialId || 'N/A'}</Text>
-                  </View>
                 </View>
                 <View style={styles.rightColumn}>
                   {isAlreadyAdded && (
@@ -283,31 +338,33 @@ export default function ClinicOwnerAddDoctorScreen() {
             {/* Form Content */}
             <ScrollView style={styles.modalScrollView} showsVerticalScrollIndicator={false}>
               <View style={styles.formContainer}>
-                <Text style={styles.infoText}>
-                  Confirm adding this doctor to your clinic. The doctor will be able to manage patients under your clinic.
-                </Text>
-
                 {selectedDoctor && (
                   <View style={styles.selectedDoctorInfo}>
                     <Text style={styles.selectedDoctorLabel}>Doctor Details:</Text>
                     <Text style={styles.selectedDoctorText}>Name: {selectedDoctor.name}</Text>
                     <Text style={styles.selectedDoctorText}>Specialty: {selectedDoctor.specialty}</Text>
-                    <Text style={styles.selectedDoctorText}>Email: {selectedDoctor.email}</Text>
                     <Text style={styles.selectedDoctorText}>Phone: {selectedDoctor.phoneNumber}</Text>
                     <Text style={styles.selectedDoctorText}>Pincode: {selectedDoctor.pinCode}</Text>
-                    <Text style={[styles.selectedDoctorText, styles.specialIdHighlight]}>Special ID: {selectedDoctor.specialId || 'N/A'}</Text>
                   </View>
                 )}
 
-                {/* Email (pre-filled, read-only) */}
+                {/* Special ID Input */}
                 <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Doctor Email Address *</Text>
+                  <Text style={styles.inputLabel}>Doctor Special ID *</Text>
                   <TextInput
-                    style={[styles.input, styles.inputDisabled]}
-                    value={selectedDoctor?.email || ''}
-                    editable={false}
+                    style={[styles.input, specialIdError && styles.inputError]}
+                    placeholder="Enter 6-digit Special ID"
                     placeholderTextColor="#9CA3AF"
+                    value={specialId}
+                    onChangeText={(text) => {
+                      setSpecialId(text);
+                      setSpecialIdError('');
+                    }}
+                    keyboardType="numeric"
+                    maxLength={6}
+                    autoCorrect={false}
                   />
+                  {specialIdError && <Text style={styles.errorText}>{specialIdError}</Text>}
                 </View>
 
                 {/* Action Buttons */}
@@ -651,6 +708,22 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#374151',
     backgroundColor: 'white',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    borderWidth: 2,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    marginTop: 4,
+    marginLeft: 4,
+  },
+  helperText: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 8,
+    fontStyle: 'italic',
   },
   inputDisabled: {
     backgroundColor: '#F3F4F6',

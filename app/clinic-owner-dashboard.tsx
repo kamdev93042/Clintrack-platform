@@ -294,8 +294,12 @@ export default function ClinicOwnerDashboardScreen() {
             const monthLabel = item.month ? (item.month.substring ? item.month.substring(0, 3) : item.month) : '';
             return (
               <View key={index} style={styles.barWrapper}>
-                <View style={styles.barContainer}>
-                  <View style={[styles.bar, { height, backgroundColor: color }]} />
+                <View style={styles.barColumn}>
+                  <View style={styles.barContainer}>
+                    {/* Count value positioned at the top of each bar dynamically */}
+                    <Text style={[styles.barValue, { bottom: height + 4 }]}>{value}</Text>
+                    <View style={[styles.bar, { height, backgroundColor: color }]} />
+                  </View>
                 </View>
                 <Text style={styles.chartLabel}>{monthLabel}</Text>
               </View>
@@ -499,8 +503,8 @@ export default function ClinicOwnerDashboardScreen() {
             <TouchableOpacity 
               style={styles.patientCard}
               onPress={() => {
-                // Navigate to patient details if needed
-                Alert.alert('Patient Details', `Name: ${item.name}\nAge: ${item.age}\nDoctor: ${item.doctor.name}\nStatus: ${item.status}`);
+                // Navigate to patient profile screen
+                router.push(`/clinic-owner-patient-profile?id=${item.id}`);
               }}
             >
               <View style={styles.patientHeader}>
@@ -534,6 +538,10 @@ export default function ClinicOwnerDashboardScreen() {
                     Sessions: {item.totalSessions}
                   </Text>
                 </View>
+              </View>
+              <View style={styles.tapToViewContainer}>
+                <Ionicons name="eye-outline" size={16} color="#6B46C1" />
+                <Text style={styles.tapToViewText}>Tap to view</Text>
               </View>
             </TouchableOpacity>
           )}
@@ -695,15 +703,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
+  barColumn: {
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    height: 140,
+    width: '100%',
+  },
   barContainer: {
     height: 120,
     justifyContent: 'flex-end',
     width: '80%',
+    alignItems: 'center',
+    position: 'relative',
   },
   bar: {
     width: '100%',
     borderRadius: 4,
     minHeight: 4,
+  },
+  barValue: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#374151',
+    textAlign: 'center',
+    position: 'absolute',
+    width: '100%',
   },
   chartLabel: {
     fontSize: 10,
@@ -880,6 +904,21 @@ const styles = StyleSheet.create({
   lastVisit: {
     fontSize: 14,
     color: '#6B7280',
+  },
+  tapToViewContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+    gap: 6,
+  },
+  tapToViewText: {
+    fontSize: 14,
+    color: '#6B46C1',
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
