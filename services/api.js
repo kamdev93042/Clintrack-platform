@@ -43,9 +43,11 @@ class ApiService {
 
     if (includeAuth && this.token) {
       headers['Authorization'] = `Bearer ${this.token}`;
-      console.log('Sending token:', this.token.substring(0, 20) + '...');
+      console.log('🔑 Sending token:', this.token.substring(0, 20) + '...');
     } else if (includeAuth) {
-      console.log('No token available for authenticated request');
+      console.warn('⚠️ No token available for authenticated request');
+      console.warn('⚠️ Token value:', this.token);
+      console.warn('⚠️ includeAuth:', includeAuth);
     }
 
     return headers;

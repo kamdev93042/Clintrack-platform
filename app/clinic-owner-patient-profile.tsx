@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Modal, TextInput, Alert, Image, Dimensions, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { Video, ResizeMode } from 'expo-av';
@@ -9,10 +9,15 @@ import ClinicOwnerPatientService from '../services/clinicOwnerPatientService';
 import ClinicOwnerAuthService from '../services/clinicOwnerAuthService';
 import ClinicOwnerSessionService from '../services/clinicOwnerSessionService';
 import MediaService from '../services/mediaService';
+import ApiService from '../services/api';
+import SupportContactForm from '../components/SupportContactForm';
 
 export default function ClinicOwnerPatientProfileScreen() {
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  // Handle id as string or array (from query params)
+  const id = Array.isArray(params.id) ? params.id[0] : params.id;
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
   
   // Get screen dimensions for responsive gallery (with state for dynamic updates)
   const [dimensions, setDimensions] = useState({
@@ -159,9 +164,27 @@ export default function ClinicOwnerPatientProfileScreen() {
   // Load patient data on component mount
   useEffect(() => {
     if (id) {
+      console.log('🆔 Patient ID from params:', id, typeof id);
       initializeAuth();
+    } else {
+      console.error('❌ No patient ID found in params');
+      console.error('❌ All params:', params);
     }
   }, [id]);
+
+  // Reload sessions when screen comes into focus (similar to doctor profile)
+  useFocusEffect(
+    React.useCallback(() => {
+      if (id && !loading) {
+        console.log('🔄 Screen focused - reloading sessions...');
+        // Small delay to ensure auth is ready
+        const timer = setTimeout(() => {
+          loadSessions();
+        }, 500);
+        return () => clearTimeout(timer);
+      }
+    }, [id, loading])
+  );
 
   // Ensure ScrollView scrolls to correct position when modal first opens
   useEffect(() => {
@@ -181,9 +204,25 @@ export default function ClinicOwnerPatientProfileScreen() {
 
   const initializeAuth = async () => {
     try {
-      await ClinicOwnerAuthService.initializeAuth();
+      console.log('🔐 Initializing clinic owner auth...');
+      const authInitialized = await ClinicOwnerAuthService.initializeAuth();
+      console.log('🔐 Auth initialized:', authInitialized);
+      
+      // Ensure token is set in ApiService
+      const token = await ClinicOwnerAuthService.getToken();
+      if (token) {
+        ApiService.setToken(token);
+        console.log('✅ Token set in ApiService');
+      } else {
+        console.warn('⚠️ No token available after auth initialization');
+      }
+      
       await loadPatient();
-      await loadSessions();
+      // loadSessions is now called inside loadPatient if sessions come with patient data
+      // But we still call it here as a fallback in case they don't
+      if (!sessions || sessions.length === 0) {
+        await loadSessions();
+      }
     } catch (error) {
       console.error('Failed to initialize auth:', error);
       setLoading(false);
@@ -191,34 +230,113 @@ export default function ClinicOwnerPatientProfileScreen() {
   };
 
   const loadPatient = async () => {
+    if (!id) {
+      console.error('❌ No patient ID provided');
+      Alert.alert('Error', 'Patient ID is missing');
+      router.back();
+      return;
+    }
+
     try {
       setLoading(true);
+      console.log('📋 Loading patient details for ID:', id);
+      
+      // Ensure token is set before API call
+      const token = await ClinicOwnerAuthService.getToken();
+      if (token) {
+        ApiService.setToken(token);
+        console.log('✅ Token set for patient API call');
+      } else {
+        console.warn('⚠️ No token found, attempting to initialize auth');
+        await ClinicOwnerAuthService.initializeAuth();
+      }
+      
       const result = await ClinicOwnerPatientService.getPatientDetails(id);
       
-      if (result.success) {
-        setPatient(result.data.patient);
+      console.log('📦 Patient API Response:', {
+        success: result.success,
+        hasData: !!result.data,
+        hasPatient: !!result.data?.patient,
+        message: result.message
+      });
+      
+      if (result.success && result.data) {
+        if (result.data.patient) {
+          console.log('✅ Patient loaded successfully:', result.data.patient.name || result.data.patient.id);
+          // Set patient with all data from backend
+          const patientData = {
+            ...result.data.patient,
+            // Include statistics if available
+            totalSessions: result.data.statistics?.totalSessions || result.data.patient.totalSessions || 0,
+            totalRevenue: result.data.statistics?.totalRevenue || result.data.patient.totalAmountPaid || 0
+          };
+          setPatient(patientData);
+          
+          // Also set sessions if they come with patient data (backend includes them)
+          if (result.data.sessions && Array.isArray(result.data.sessions)) {
+            console.log('✅ Setting sessions from patient details response:', result.data.sessions.length);
+            setSessions(result.data.sessions);
+          }
+        } else {
+          console.error('❌ Patient data not found in response');
+          console.error('❌ Full response:', JSON.stringify(result, null, 2));
+          // Try to show what we got
+          if (result.data) {
+            console.log('⚠️ Response has data but no patient field:', Object.keys(result.data));
+          }
+          Alert.alert('Error', 'Patient data not found in response. Please try again.');
+        }
       } else {
-        Alert.alert('Error', result.message);
-        router.back();
+        console.error('❌ Failed to load patient:', result.message);
+        console.error('❌ Full result:', JSON.stringify(result, null, 2));
+        // Don't immediately go back - show error but let user see it
+        Alert.alert('Error', result.message || 'Failed to load patient details');
       }
-    } catch (error) {
-      Alert.alert('Error', 'Failed to load patient details');
-      router.back();
+    } catch (error: any) {
+      console.error('❌ Error loading patient:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      Alert.alert('Error', error.message || 'Failed to load patient details');
     } finally {
       setLoading(false);
     }
   };
 
   const loadSessions = async () => {
-    if (!id) return;
+    if (!id) {
+      console.log('⚠️ No patient ID provided, skipping session load');
+      return;
+    }
     
     try {
       setLoadingSessions(true);
+      console.log('📋 Loading sessions for patient:', id);
+      
+      // Ensure token is set before making API call
+      const token = await ClinicOwnerAuthService.getToken();
+      if (token) {
+        ApiService.setToken(token);
+        console.log('✅ Token set for session API call');
+      } else {
+        console.warn('⚠️ No token found, attempting to initialize auth');
+        await ClinicOwnerAuthService.initializeAuth();
+      }
+      
       const result = await ClinicOwnerSessionService.getSessionsByPatient(id, { limit: 50 });
       
-      if (result.success) {
+      console.log('📦 Session API Response:', {
+        success: result.success,
+        hasData: !!result.data,
+        sessionsCount: result.data?.sessions?.length || 0,
+        message: result.message
+      });
+      
+      if (result.success && result.data) {
         const sessionsData = result.data.sessions || [];
-        console.log('📋 Loaded sessions:', sessionsData.length);
+        console.log('✅ Loaded sessions:', sessionsData.length);
         // Log media info for each session
         sessionsData.forEach((session: any, index: number) => {
           const photosCount = session.media?.photos?.length || 0;
@@ -227,10 +345,18 @@ export default function ClinicOwnerPatientProfileScreen() {
         });
         setSessions(sessionsData);
       } else {
-        console.error('Failed to load sessions:', result.message);
+        console.error('❌ Failed to load sessions:', result.message);
+        console.error('❌ Full result:', JSON.stringify(result, null, 2));
+        setSessions([]);
       }
-    } catch (error) {
-      console.error('Error loading sessions:', error);
+    } catch (error: any) {
+      console.error('❌ Error loading sessions:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
+      setSessions([]);
     } finally {
       setLoadingSessions(false);
     }
@@ -257,12 +383,14 @@ export default function ClinicOwnerPatientProfileScreen() {
   };
 
   const handleAddNewSession = () => {
+    console.log('➕ Add New Session button pressed');
     // Set today's date as default
     const today = new Date();
     setCalendarMonth(today);
     setSelectedDate(today);
     setSessionDate(formatDate(today));
     setShowAddSessionModal(true);
+    console.log('✅ Add Session modal should be visible now');
   };
 
   const handleCloseAddSession = () => {
@@ -843,7 +971,11 @@ export default function ClinicOwnerPatientProfileScreen() {
 
         {/* Action Buttons */}
         <View style={styles.actionButtonsSection}>
-          <TouchableOpacity style={styles.addSessionButton} onPress={handleAddNewSession}>
+          <TouchableOpacity 
+            style={styles.addSessionButton} 
+            onPress={handleAddNewSession}
+            activeOpacity={0.7}
+          >
             <Ionicons name="add-circle" size={20} color="white" />
             <Text style={styles.addSessionButtonText}>Add New Session</Text>
           </TouchableOpacity>
@@ -874,7 +1006,11 @@ export default function ClinicOwnerPatientProfileScreen() {
             <Text style={styles.sessionHistoryTitle}>Session History</Text>
           </View>
           
-          {patient.totalSessions === 0 ? (
+          {loadingSessions ? (
+            <View style={styles.emptySessionsContainer}>
+              <Text style={styles.emptySessionsText}>Loading sessions...</Text>
+            </View>
+          ) : sessionHistory.length === 0 ? (
             <View style={styles.emptySessionsContainer}>
               <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />
               <Text style={styles.emptySessionsText}>No sessions recorded yet</Text>
@@ -940,6 +1076,21 @@ export default function ClinicOwnerPatientProfileScreen() {
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Floating Support Button */}
+      <TouchableOpacity
+        style={styles.supportButton}
+        onPress={() => setSupportModalVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="chatbubble-ellipses" size={24} color="white" />
+      </TouchableOpacity>
+
+      {/* Support Contact Form Modal */}
+      <SupportContactForm
+        visible={supportModalVisible}
+        onClose={() => setSupportModalVisible(false)}
+      />
 
       {/* Add New Session Modal */}
       <Modal
@@ -2522,5 +2673,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  supportButton: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6B46C1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    zIndex: 1000,
   },
 });

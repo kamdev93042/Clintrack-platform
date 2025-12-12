@@ -5,10 +5,12 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PatientService from '../services/patientService';
 import AuthService from '../services/authService';
+import SupportContactForm from '../components/SupportContactForm';
 
 export default function DoctorPatientScreen() {
   const insets = useSafeAreaInsets();
   const [showAddPatientModal, setShowAddPatientModal] = useState(false);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
   const [patientName, setPatientName] = useState('');
   const [age, setAge] = useState('');
   const [gender, setGender] = useState('');
@@ -570,6 +572,21 @@ export default function DoctorPatientScreen() {
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Floating Support Button */}
+      <TouchableOpacity
+        style={styles.supportButton}
+        onPress={() => setSupportModalVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="chatbubble-ellipses" size={24} color="white" />
+      </TouchableOpacity>
+
+      {/* Support Contact Form Modal */}
+      <SupportContactForm
+        visible={supportModalVisible}
+        onClose={() => setSupportModalVisible(false)}
+      />
 
       {/* Add Patient Modal */}
       <Modal
@@ -1490,5 +1507,25 @@ const styles = StyleSheet.create({
   addButtonDisabled: {
     backgroundColor: '#9CA3AF',
     opacity: 0.6,
+  },
+  supportButton: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6B46C1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    zIndex: 1000,
   },
 });

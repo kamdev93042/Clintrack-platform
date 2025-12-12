@@ -7,10 +7,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AuthService from '../../services/authService';
 import PatientAuthService from '../../services/patientAuthService';
 import ClinicOwnerAuthService from '../../services/clinicOwnerAuthService';
+import SupportContactForm from '../../components/SupportContactForm';
 
 export default function HomeScreen() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [checkingAuth, setCheckingAuth] = useState(true);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
   const insets = useSafeAreaInsets();
 
   // Check for existing sessions on app startup
@@ -225,6 +227,21 @@ export default function HomeScreen() {
           </View>
         </View>
       )}
+
+      {/* Floating Support Button */}
+      <TouchableOpacity
+        style={styles.supportButton}
+        onPress={() => setSupportModalVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="chatbubble-ellipses" size={24} color="#6B46C1" />
+      </TouchableOpacity>
+
+      {/* Support Contact Form Modal */}
+      <SupportContactForm
+        visible={supportModalVisible}
+        onClose={() => setSupportModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -473,5 +490,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     marginTop: 16,
     opacity: 0.9,
+  },
+  supportButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    zIndex: 1000,
   },
 });

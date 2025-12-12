@@ -177,14 +177,49 @@ class ClinicOwnerSessionService {
       if (options.limit) queryParams.append('limit', options.limit);
       
       const endpoint = `/clinic-owner/sessions/patient/${patientId}${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+      console.log('📡 Calling sessions API:', endpoint);
+      
       const response = await ApiService.get(endpoint);
       
-      return {
-        success: true,
-        data: response.data,
-      };
+      console.log('📡 Sessions API response:', {
+        hasResponse: !!response,
+        hasData: !!response?.data,
+        hasSessions: !!response?.data?.sessions,
+        sessionsCount: response?.data?.sessions?.length || 0,
+        success: response?.success
+      });
+      
+      // Handle different response structures
+      if (response && response.data) {
+        return {
+          success: true,
+          data: response.data,
+        };
+      } else if (response && response.sessions) {
+        // Handle case where sessions are directly in response
+        return {
+          success: true,
+          data: {
+            sessions: response.sessions,
+            total: response.total || response.sessions.length
+          },
+        };
+      } else {
+        console.warn('⚠️ Unexpected response structure:', response);
+        return {
+          success: false,
+          message: 'Unexpected response structure from server',
+          data: { sessions: [], total: 0 },
+        };
+      }
     } catch (error) {
-      console.error('Error getting sessions:', error);
+      console.error('❌ Error getting sessions:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        endpoint: `/clinic-owner/sessions/patient/${patientId}`
+      });
       return {
         success: false,
         message: error?.response?.data?.message || error.message || 'Failed to get sessions',

@@ -5,12 +5,14 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ClinicOwnerAuthService from '../services/clinicOwnerAuthService';
 import ClinicOwnerDoctorService from '../services/clinicOwnerDoctorService';
+import SupportContactForm from '../components/SupportContactForm';
 
 export default function ClinicOwnerDoctorsScreen() {
   const insets = useSafeAreaInsets();
   const [doctors, setDoctors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddDoctorModal, setShowAddDoctorModal] = useState(false);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -307,6 +309,21 @@ export default function ClinicOwnerDoctorsScreen() {
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Floating Support Button */}
+      <TouchableOpacity
+        style={styles.supportButton}
+        onPress={() => setSupportModalVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="chatbubble-ellipses" size={24} color="white" />
+      </TouchableOpacity>
+
+      {/* Support Contact Form Modal */}
+      <SupportContactForm
+        visible={supportModalVisible}
+        onClose={() => setSupportModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -592,6 +609,26 @@ const styles = StyleSheet.create({
   navTextActive: {
     color: '#6B46C1',
     fontWeight: '600',
+  },
+  supportButton: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6B46C1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    zIndex: 1000,
   },
 });
 

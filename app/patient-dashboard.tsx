@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { Video, ResizeMode } from 'expo-av';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PatientAuthService from '../services/patientAuthService';
+import SupportContactForm from '../components/SupportContactForm';
 
 
 export default function PatientDashboardScreen() {
@@ -24,6 +25,7 @@ export default function PatientDashboardScreen() {
   const [isVideoPlaying, setIsVideoPlaying] = useState(false);
   const [showPlayPauseButton, setShowPlayPauseButton] = useState(false);
   const hideButtonTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
 
   useEffect(() => {
     initializeAuth();
@@ -690,6 +692,21 @@ export default function PatientDashboardScreen() {
           )}
         </View>
       </Modal>
+
+      {/* Floating Support Button */}
+      <TouchableOpacity
+        style={styles.supportButton}
+        onPress={() => setSupportModalVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="chatbubble-ellipses" size={24} color="white" />
+      </TouchableOpacity>
+
+      {/* Support Contact Form Modal */}
+      <SupportContactForm
+        visible={supportModalVisible}
+        onClose={() => setSupportModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -1192,5 +1209,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     fontFamily: 'monospace',
+  },
+  supportButton: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6B46C1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    zIndex: 1000,
   },
 });

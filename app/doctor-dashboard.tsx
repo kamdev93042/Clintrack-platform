@@ -5,6 +5,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DashboardService from '../services/dashboardService';
 import AuthService from '../services/authService';
+import SupportContactForm from '../components/SupportContactForm';
 
 export default function DoctorDashboardScreen() {
   const insets = useSafeAreaInsets();
@@ -12,6 +13,7 @@ export default function DoctorDashboardScreen() {
   const [statistics, setStatistics] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [doctor, setDoctor] = useState<any>(null);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
 
   useEffect(() => {
     initializeAuth();
@@ -260,6 +262,21 @@ export default function DoctorDashboardScreen() {
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Floating Support Button */}
+      <TouchableOpacity
+        style={styles.supportButton}
+        onPress={() => setSupportModalVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="chatbubble-ellipses" size={24} color="white" />
+      </TouchableOpacity>
+
+      {/* Support Contact Form Modal */}
+      <SupportContactForm
+        visible={supportModalVisible}
+        onClose={() => setSupportModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -454,5 +471,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#9CA3AF',
     marginTop: 10,
+  },
+  supportButton: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6B46C1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    zIndex: 1000,
   },
 });

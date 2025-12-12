@@ -20,6 +20,7 @@ import ClinicOwnerAuthService from '../services/clinicOwnerAuthService';
 import ClinicOwnerService from '../services/clinicOwnerService';
 import ClinicOwnerPatientService from '../services/clinicOwnerPatientService';
 import ClinicOwnerDoctorService from '../services/clinicOwnerDoctorService';
+import SupportContactForm from '../components/SupportContactForm';
 
 // Default stats (will be replaced with real data)
 const defaultStats = {
@@ -79,6 +80,7 @@ export default function ClinicOwnerDashboardScreen() {
   const [patientGrowth, setPatientGrowth] = useState(defaultPatientGrowth);
   const [uploadsTrend, setUploadsTrend] = useState(defaultUploadsTrend);
   const [trendsLoading, setTrendsLoading] = useState(false);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
 
   useEffect(() => {
     initializeAuth();
@@ -598,6 +600,21 @@ export default function ClinicOwnerDashboardScreen() {
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Floating Support Button */}
+      <TouchableOpacity
+        style={styles.supportButton}
+        onPress={() => setSupportModalVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="chatbubble-ellipses" size={24} color="white" />
+      </TouchableOpacity>
+
+      {/* Support Contact Form Modal */}
+      <SupportContactForm
+        visible={supportModalVisible}
+        onClose={() => setSupportModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -965,5 +982,25 @@ const styles = StyleSheet.create({
   navTextActive: {
     color: '#6B46C1',
     fontWeight: '600',
+  },
+  supportButton: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6B46C1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    zIndex: 1000,
   },
 });

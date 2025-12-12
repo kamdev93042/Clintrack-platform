@@ -5,11 +5,13 @@ import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import IncomeService from '../services/incomeService';
 import AuthService from '../services/authService';
+import SupportContactForm from '../components/SupportContactForm';
 
 export default function DoctorIncomeScreen() {
   const insets = useSafeAreaInsets();
   const [selectedTimeframe, setSelectedTimeframe] = useState('Last 6 Months');
   const [loading, setLoading] = useState(true);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
   const [statistics, setStatistics] = useState({
     thisMonth: { amount: 0, change: 0 },
     projected: { amount: 0, change: 0 },
@@ -519,5 +521,25 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#9CA3AF',
     marginTop: 10,
+  },
+  supportButton: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6B46C1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    zIndex: 1000,
   },
 });

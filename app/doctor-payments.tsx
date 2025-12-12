@@ -6,12 +6,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import PaymentService from '../services/paymentService';
 import AuthService from '../services/authService';
+import SupportContactForm from '../components/SupportContactForm';
 
 const MARKED_PAID_STORAGE_KEY = 'clintrack_marked_paid_patients';
 
 export default function DoctorPaymentsScreen() {
   const insets = useSafeAreaInsets();
   const [loading, setLoading] = useState(true);
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
   const [statistics, setStatistics] = useState({
     totalDue: 0,
     overduePatientsCount: 0,
@@ -471,6 +473,21 @@ export default function DoctorPaymentsScreen() {
           <Text style={styles.navText}>Profile</Text>
         </TouchableOpacity>
       </View>
+
+      {/* Floating Support Button */}
+      <TouchableOpacity
+        style={styles.supportButton}
+        onPress={() => setSupportModalVisible(true)}
+        activeOpacity={0.8}
+      >
+        <Ionicons name="chatbubble-ellipses" size={24} color="white" />
+      </TouchableOpacity>
+
+      {/* Support Contact Form Modal */}
+      <SupportContactForm
+        visible={supportModalVisible}
+        onClose={() => setSupportModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -695,5 +712,25 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#6B7280',
     marginTop: 5,
+  },
+  supportButton: {
+    position: 'absolute',
+    bottom: 100,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#6B46C1',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 4.65,
+    elevation: 8,
+    zIndex: 1000,
   },
 });
