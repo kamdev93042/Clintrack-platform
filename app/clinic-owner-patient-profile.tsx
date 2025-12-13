@@ -218,11 +218,9 @@ export default function ClinicOwnerPatientProfileScreen() {
       }
       
       await loadPatient();
-      // loadSessions is now called inside loadPatient if sessions come with patient data
-      // But we still call it here as a fallback in case they don't
-      if (!sessions || sessions.length === 0) {
-        await loadSessions();
-      }
+      // Always try to load sessions separately to ensure we have the latest data
+      // The patient details API might include sessions, but we also want to load them separately
+      await loadSessions();
     } catch (error) {
       console.error('Failed to initialize auth:', error);
       setLoading(false);

@@ -133,7 +133,8 @@ export default function SupportContactForm({ visible, onClose, onSubmit }: Suppo
             <ScrollView
               style={styles.scrollView}
               contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
+              showsVerticalScrollIndicator={true}
+              nestedScrollEnabled={true}
             >
               {/* Welcome Message */}
               <View style={styles.welcomeBubble}>
@@ -248,7 +249,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '90%',
+    maxHeight: '95%',
+    minHeight: '80%',
     paddingBottom: 20,
   },
   header: {
@@ -288,6 +290,8 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    paddingBottom: 40,
+    flexGrow: 1,
   },
   welcomeBubble: {
     backgroundColor: '#F3F4F6',

@@ -7,7 +7,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PatientAuthService from '../services/patientAuthService';
 
 export default function PatientLoginScreen() {
-  const [patientName, setPatientName] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
@@ -32,10 +31,6 @@ export default function PatientLoginScreen() {
     // Validate fields
     const newErrors: {[key: string]: string} = {};
     
-    if (!patientName.trim()) {
-      newErrors.patientName = 'Patient name is required';
-    }
-    
     if (!mobileNumber) {
       newErrors.mobileNumber = 'Mobile number is required';
     } else {
@@ -54,7 +49,7 @@ export default function PatientLoginScreen() {
 
     setLoading(true);
     try {
-      const result = await PatientAuthService.login(patientName, mobileNumber);
+      const result = await PatientAuthService.login(mobileNumber);
       
       if (result.success) {
         // Show success message after a brief delay
@@ -77,8 +72,7 @@ export default function PatientLoginScreen() {
             errorMsg?.toLowerCase().includes('wrong') ||
             errorMsg?.toLowerCase().includes('not found')) {
           setErrors({
-            patientName: 'Invalid name or mobile number',
-            mobileNumber: 'Invalid name or mobile number'
+            mobileNumber: 'Invalid mobile number. Patient not found.'
           });
         } else {
           Alert.alert('Error', errorMsg);
@@ -95,8 +89,7 @@ export default function PatientLoginScreen() {
           errorMessage?.toLowerCase().includes('not found') ||
           error?.response?.status === 401) {
         setErrors({
-          patientName: 'Invalid name or mobile number',
-          mobileNumber: 'Invalid name or mobile number'
+          mobileNumber: 'Invalid mobile number. Patient not found.'
         });
       } else {
         Alert.alert('Error', errorMessage);
@@ -132,24 +125,6 @@ export default function PatientLoginScreen() {
           <Text style={styles.title}>Patient Login</Text>
           <Text style={styles.subtitle}>Access your medical records</Text>
         
-          {/* Patient Name Input */}
-          <View style={styles.inputContainer}>
-            <Text style={styles.inputLabel}>Patient Name</Text>
-            <TextInput
-              style={[styles.input, errors.patientName && styles.inputError]}
-              placeholder="Enter your name"
-              placeholderTextColor="#9CA3AF"
-              value={patientName}
-              onChangeText={(text) => {
-                setPatientName(text);
-                clearError('patientName');
-              }}
-              autoCapitalize="words"
-              autoCorrect={false}
-            />
-            {errors.patientName && <Text style={styles.errorText}>{errors.patientName}</Text>}
-          </View>
-
           {/* Mobile Number Input */}
           <View style={styles.inputContainer}>
             <Text style={styles.inputLabel}>Mobile Number</Text>
@@ -159,7 +134,9 @@ export default function PatientLoginScreen() {
               placeholderTextColor="#9CA3AF"
               value={mobileNumber}
               onChangeText={(text) => {
-                setMobileNumber(text);
+                // Allow only digits and limit to 10 digits
+                const cleaned = text.replace(/[^0-9]/g, '').slice(0, 10);
+                setMobileNumber(cleaned);
                 clearError('mobileNumber');
               }}
               keyboardType="phone-pad"

@@ -220,9 +220,6 @@ export default function DoctorIncomeScreen() {
           <View style={styles.monthlyEarningsSection}>
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Monthly Earnings</Text>
-              <TouchableOpacity style={styles.timeframeButton} onPress={handleTimeframeChange}>
-                <Text style={styles.timeframeText}>{selectedTimeframe}</Text>
-              </TouchableOpacity>
             </View>
             
             <View style={styles.earningsCard}>

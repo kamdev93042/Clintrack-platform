@@ -7,9 +7,9 @@ const USER_KEY = 'clintrack_patient_user';
 
 class PatientAuthService {
   // Login patient
-  async login(name, mobileNumber) {
+  async login(mobileNumber) {
     try {
-      const response = await ApiService.post('/patient-auth/login', { name, mobileNumber }, {
+      const response = await ApiService.post('/patient-auth/login', { mobileNumber }, {
         includeAuth: false,
       });
 

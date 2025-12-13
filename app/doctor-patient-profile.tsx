@@ -86,6 +86,9 @@ export default function DoctorPatientProfileScreen() {
   const [calendarMonth, setCalendarMonth] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   
+  // Support modal state
+  const [supportModalVisible, setSupportModalVisible] = useState(false);
+  
   // Helper function to format date as dd-mm-yyyy
   const formatDate = (date: Date): string => {
     return `${date.getDate().toString().padStart(2, '0')}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getFullYear()}`;
