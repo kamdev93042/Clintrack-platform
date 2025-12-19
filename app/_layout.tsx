@@ -44,6 +44,8 @@ export default function RootLayout() {
         <Stack.Screen name="clinic-owner-add-doctor" options={{ headerShown: false }} />
         <Stack.Screen name="clinic-owner-patient-profile" options={{ headerShown: false }} />
         <Stack.Screen name="pricing" options={{ headerShown: false }} />
+        <Stack.Screen name="products" options={{ headerShown: false }} />
+        <Stack.Screen name="finance" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

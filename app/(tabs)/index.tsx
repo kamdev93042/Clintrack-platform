@@ -84,6 +84,22 @@ export default function HomeScreen() {
     router.push('/pricing');
   };
 
+  const handleProductsPress = () => {
+    setSidebarVisible(false);
+    router.push('/products');
+  };
+
+  const handleFinancePress = () => {
+    setSidebarVisible(false);
+    router.push('/finance');
+  };
+
+  const handleHomePress = () => {
+    setSidebarVisible(false);
+    // Navigate to home page (front page)
+    router.replace('/(tabs)');
+  };
+
   // Show loading screen while checking authentication
   if (checkingAuth) {
     return (
@@ -198,17 +214,17 @@ export default function HomeScreen() {
 
             {/* Menu Items */}
             <View style={styles.menuItems}>
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity style={styles.menuItem} onPress={handleHomePress}>
                 <Ionicons name="home" size={24} color="#8B4513" />
                 <Text style={styles.menuItemText}>Home</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity style={styles.menuItem} onPress={handleProductsPress}>
                 <Ionicons name="cube" size={24} color="#8B4513" />
                 <Text style={styles.menuItemText}>Products</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.menuItem}>
+              <TouchableOpacity style={styles.menuItem} onPress={handleFinancePress}>
                 <Ionicons name="wallet" size={24} color="#F59E0B" />
                 <Text style={styles.menuItemText}>Finance</Text>
               </TouchableOpacity>
