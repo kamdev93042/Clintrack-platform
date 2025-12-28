@@ -251,7 +251,10 @@ export default function DoctorProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity> */}
 
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity 
+            style={styles.settingItem}
+            onPress={() => router.push('/notifications')}
+          >
             <View style={styles.settingLeft}>
               <Ionicons name="notifications" size={24} color="#F59E0B" />
               <Text style={styles.settingText}>Notifications</Text>
@@ -259,7 +262,10 @@ export default function DoctorProfileScreen() {
             <Ionicons name="chevron-forward" size={20} color="#9CA3AF" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.settingItem}>
+          <TouchableOpacity 
+            style={styles.settingItem}
+            onPress={() => router.push('/subscription')}
+          >
             <View style={styles.settingLeft}>
               <Ionicons name="card" size={24} color="#3B82F6" />
               <Text style={styles.settingText}>Subscription</Text>
