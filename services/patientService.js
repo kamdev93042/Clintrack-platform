@@ -11,9 +11,12 @@ class PatientService {
         patient: response.patient,
       };
     } catch (error) {
+      // Return full error object so frontend can access errors array
       return {
         success: false,
         message: error.message || 'Failed to add patient',
+        errors: error.response?.data?.errors || [],
+        errorData: error.response?.data || {}
       };
     }
   }

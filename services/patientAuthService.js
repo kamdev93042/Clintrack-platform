@@ -29,9 +29,12 @@ class PatientAuthService {
         token: response.token,
       };
     } catch (error) {
+      // Return full error object so frontend can access error details
       return {
         success: false,
         message: error.message || 'Login failed',
+        errorData: error.response?.data || {},
+        errors: error.response?.data?.errors || []
       };
     }
   }
@@ -117,6 +120,23 @@ class PatientAuthService {
         success: false,
         message: error.message || 'Failed to get patient images',
         images: [],
+      };
+    }
+  }
+
+  // Get patient sessions
+  async getPatientSessions() {
+    try {
+      const response = await ApiService.get('/patient-auth/sessions');
+      return {
+        success: true,
+        sessions: response.sessions || [],
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to get patient sessions',
+        sessions: [],
       };
     }
   }

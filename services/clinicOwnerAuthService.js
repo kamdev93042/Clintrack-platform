@@ -25,10 +25,12 @@ class ClinicOwnerAuthService {
       };
     } catch (error) {
       console.error('Registration error details:', error);
-      const errorMessage = error.message || error.response?.data?.message || 'Registration failed';
+      // Return full error object so frontend can access error details
       return {
         success: false,
-        message: errorMessage,
+        message: error.message || error.response?.data?.message || 'Registration failed',
+        errorData: error.response?.data || {},
+        errors: error.response?.data?.errors || []
       };
     }
   }
@@ -256,6 +258,26 @@ class ClinicOwnerAuthService {
       return {
         success: false,
         message: error.message || 'Password reset failed',
+      };
+    }
+  }
+
+  // Change password
+  async changePassword(currentPassword, newPassword) {
+    try {
+      const response = await ApiService.put('/clinic-owner-auth/change-password', {
+        currentPassword,
+        newPassword,
+      });
+
+      return {
+        success: true,
+        message: response.message,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Password change failed',
       };
     }
   }

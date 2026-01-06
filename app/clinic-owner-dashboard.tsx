@@ -439,15 +439,26 @@ export default function ClinicOwnerDashboardScreen() {
           </View>
         ) : (
           doctors.map((doctor) => (
-            <View key={doctor.id} style={styles.doctorCard}>
+            <TouchableOpacity 
+              key={doctor.id} 
+              style={styles.doctorCard}
+              onPress={() => {
+                // Navigate to doctor details screen
+                router.push(`/clinic-owner-doctor-details?id=${doctor.id}`);
+              }}
+              activeOpacity={0.7}
+            >
               <View style={styles.doctorHeader}>
                 <View style={styles.doctorInfo}>
                   <Text style={styles.doctorName}>{doctor.name}</Text>
                   <Text style={styles.doctorSpecialty}>{doctor.specialty}</Text>
                 </View>
-                <View style={styles.ratingContainer}>
-                  <Ionicons name="star" size={16} color="#6B46C1" />
-                  <Text style={styles.rating}>{doctor.rating.toFixed(1)}</Text>
+                <View style={styles.doctorHeaderRight}>
+                  <View style={styles.ratingContainer}>
+                    <Ionicons name="star" size={16} color="#6B46C1" />
+                    <Text style={styles.rating}>{doctor.rating.toFixed(1)}</Text>
+                  </View>
+                  <Ionicons name="chevron-forward" size={20} color="#9CA3AF" style={styles.chevronIcon} />
                 </View>
               </View>
               <View style={styles.doctorStats}>
@@ -466,7 +477,11 @@ export default function ClinicOwnerDashboardScreen() {
                   <Text style={styles.doctorStatLabel}>Revenue</Text>
                 </View>
               </View>
-            </View>
+              <View style={styles.tapToViewContainer}>
+                <Ionicons name="eye-outline" size={16} color="#6B46C1" />
+                <Text style={styles.tapToViewText}>Tap to view details</Text>
+              </View>
+            </TouchableOpacity>
           ))
         )}
       </View>
@@ -796,10 +811,18 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 2,
   },
+  doctorHeaderRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   ratingContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
+  },
+  chevronIcon: {
+    marginLeft: 4,
   },
   rating: {
     fontSize: 14,

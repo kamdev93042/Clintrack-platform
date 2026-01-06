@@ -15,8 +15,10 @@ export default function PatientDashboardScreen() {
   const [loading, setLoading] = useState(true);
   const [images, setImages] = useState<any[]>([]);
   const [videos, setVideos] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
   const [imagesLoading, setImagesLoading] = useState(false);
   const [videosLoading, setVideosLoading] = useState(false);
+  const [sessionsLoading, setSessionsLoading] = useState(false);
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
@@ -43,6 +45,14 @@ export default function PatientDashboardScreen() {
   useEffect(() => {
     if (activeTab === 'videos' && videos.length === 0 && !videosLoading) {
       loadVideos();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
+  // Load sessions when sessions tab is accessed
+  useEffect(() => {
+    if (activeTab === 'sessions' && sessions.length === 0 && !sessionsLoading) {
+      loadSessions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
@@ -221,6 +231,20 @@ export default function PatientDashboardScreen() {
       console.error('Failed to load videos:', error);
     } finally {
       setVideosLoading(false);
+    }
+  };
+
+  const loadSessions = async () => {
+    setSessionsLoading(true);
+    try {
+      const result = await PatientAuthService.getPatientSessions();
+      if (result.success) {
+        setSessions(result.sessions || []);
+      }
+    } catch (error) {
+      console.error('Failed to load sessions:', error);
+    } finally {
+      setSessionsLoading(false);
     }
   };
 
@@ -403,6 +427,125 @@ export default function PatientDashboardScreen() {
   };
 
 
+  const renderSessions = () => {
+    if (sessionsLoading) {
+      return (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#6B46C1" />
+          <Text style={styles.loadingText}>Loading sessions...</Text>
+        </View>
+      );
+    }
+
+    if (sessions.length === 0) {
+      return (
+        <View>
+          <Text style={styles.sectionTitle}>Sessions</Text>
+          <View style={styles.emptyContainer}>
+            <Ionicons name="calendar-outline" size={48} color="#9CA3AF" />
+            <Text style={styles.emptyText}>No sessions available</Text>
+            <Text style={styles.emptySubtext}>Your session records will appear here</Text>
+          </View>
+        </View>
+      );
+    }
+
+    return (
+      <View>
+        <Text style={styles.sectionTitle}>Sessions ({sessions.length})</Text>
+        {sessions.map((session) => (
+          <View key={session.id} style={styles.sessionCard}>
+            <View style={styles.sessionHeader}>
+              <View style={styles.sessionHeaderLeft}>
+                <Ionicons name="calendar" size={24} color="#6B46C1" />
+                <View style={styles.sessionHeaderText}>
+                  <Text style={styles.sessionDate}>
+                    {new Date(session.sessionDate).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </Text>
+                  <Text style={styles.sessionDoctor}>
+                    Dr. {session.doctorName} • {session.doctorSpecialty}
+                  </Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.sessionDetails}>
+              {session.durationMinutes && (
+                <View style={styles.sessionDetailRow}>
+                  <Ionicons name="time-outline" size={18} color="#6B7280" />
+                  <Text style={styles.sessionDetailText}>
+                    Duration: {session.durationMinutes} minutes
+                  </Text>
+                </View>
+              )}
+
+              {session.treatmentNotes && (
+                <View style={styles.sessionNotesSection}>
+                  <View style={styles.sessionNotesHeader}>
+                    <Ionicons name="medical-outline" size={18} color="#6B46C1" />
+                    <Text style={styles.sessionNotesTitle}>Treatment Notes</Text>
+                  </View>
+                  <Text style={styles.sessionNotesText}>{session.treatmentNotes}</Text>
+                </View>
+              )}
+
+              {session.progressNotes && (
+                <View style={styles.sessionNotesSection}>
+                  <View style={styles.sessionNotesHeader}>
+                    <Ionicons name="trending-up-outline" size={18} color="#10B981" />
+                    <Text style={styles.sessionNotesTitle}>Progress Notes</Text>
+                  </View>
+                  <Text style={styles.sessionNotesText}>{session.progressNotes}</Text>
+                </View>
+              )}
+
+              {(session.photosCount > 0 || session.videosCount > 0) && (
+                <View style={styles.sessionMediaInfo}>
+                  {session.photosCount > 0 && (
+                    <View style={styles.sessionMediaBadge}>
+                      <Ionicons name="images" size={14} color="#EF4444" />
+                      <Text style={styles.sessionMediaText}>{session.photosCount} photo{session.photosCount > 1 ? 's' : ''}</Text>
+                    </View>
+                  )}
+                  {session.videosCount > 0 && (
+                    <View style={styles.sessionMediaBadge}>
+                      <Ionicons name="videocam" size={14} color="#F59E0B" />
+                      <Text style={styles.sessionMediaText}>{session.videosCount} video{session.videosCount > 1 ? 's' : ''}</Text>
+                    </View>
+                  )}
+                </View>
+              )}
+
+              {session.feeCharged > 0 && (
+                <View style={styles.sessionFee}>
+                  <Ionicons name="cash-outline" size={18} color="#6B7280" />
+                  <Text style={styles.sessionFeeText}>Fee: ₹{session.feeCharged}</Text>
+                </View>
+              )}
+
+              {session.nextAppointment && (
+                <View style={styles.nextAppointment}>
+                  <Ionicons name="calendar-outline" size={18} color="#3B82F6" />
+                  <Text style={styles.nextAppointmentText}>
+                    Next Appointment: {new Date(session.nextAppointment).toLocaleDateString('en-IN', {
+                      day: 'numeric',
+                      month: 'long',
+                      year: 'numeric'
+                    })}
+                  </Text>
+                </View>
+              )}
+            </View>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   const renderImages = () => {
     if (imagesLoading) {
       return (
@@ -527,6 +670,14 @@ export default function PatientDashboardScreen() {
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
+              style={[styles.tab, activeTab === 'sessions' && styles.tabActive]}
+              onPress={() => setActiveTab('sessions')}
+            >
+              <Text style={[styles.tabText, activeTab === 'sessions' && styles.tabTextActive]}>
+                Sessions
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.tab, activeTab === 'images' && styles.tabActive]}
               onPress={() => setActiveTab('images')}
             >
@@ -540,6 +691,7 @@ export default function PatientDashboardScreen() {
         {/* Content */}
         <View style={styles.contentContainer}>
           {activeTab === 'overview' && renderOverview()}
+          {activeTab === 'sessions' && renderSessions()}
           {activeTab === 'videos' && renderVideos()}
           {activeTab === 'images' && renderImages()}
         </View>
@@ -1083,6 +1235,123 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     paddingHorizontal: 40,
+  },
+  sessionCard: {
+    backgroundColor: 'white',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  sessionHeader: {
+    marginBottom: 12,
+  },
+  sessionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  sessionHeaderText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  sessionDate: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 4,
+  },
+  sessionDoctor: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  sessionDetails: {
+    marginTop: 8,
+  },
+  sessionDetailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sessionDetailText: {
+    fontSize: 14,
+    color: '#374151',
+    marginLeft: 8,
+  },
+  sessionNotesSection: {
+    marginTop: 12,
+    marginBottom: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  sessionNotesHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  sessionNotesTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#374151',
+    marginLeft: 8,
+  },
+  sessionNotesText: {
+    fontSize: 14,
+    color: '#4B5563',
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  sessionMediaInfo: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginTop: 12,
+    gap: 8,
+  },
+  sessionMediaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  sessionMediaText: {
+    fontSize: 12,
+    color: '#374151',
+    marginLeft: 6,
+    fontWeight: '500',
+  },
+  sessionFee: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  sessionFeeText: {
+    fontSize: 14,
+    color: '#374151',
+    marginLeft: 8,
+    fontWeight: '500',
+  },
+  nextAppointment: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  nextAppointmentText: {
+    fontSize: 14,
+    color: '#3B82F6',
+    marginLeft: 8,
+    fontWeight: '500',
   },
   modalOverlay: {
     flex: 1,

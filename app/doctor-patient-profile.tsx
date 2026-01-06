@@ -60,8 +60,6 @@ export default function DoctorPatientProfileScreen() {
   const [duration, setDuration] = useState('45');
   const [treatmentNotes, setTreatmentNotes] = useState('');
   const [progressNotes, setProgressNotes] = useState('');
-  const [painLevel, setPainLevel] = useState('');
-  const [showPainLevelModal, setShowPainLevelModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
@@ -286,7 +284,6 @@ export default function DoctorPatientProfileScreen() {
     setDuration('45');
     setTreatmentNotes('');
     setProgressNotes('');
-    setPainLevel('');
     setSelectedPhotos([]);
     setSelectedVideos([]);
     // Clear errors
@@ -316,26 +313,71 @@ export default function DoctorPatientProfileScreen() {
   const handleBackendSessionErrors = (error: any) => {
     const newErrors: {[key: string]: string} = {};
     
-    // Check if error has validation errors array
+    // Check if error has validation errors array (from express-validator)
     if (error?.errors && Array.isArray(error.errors)) {
       error.errors.forEach((err: any) => {
-        const field = err.path || err.param || err.field;
+        // Try multiple ways to get the field name
+        const field = err.path || err.param || err.field || err.location || err.msg?.split(' ')[0]?.toLowerCase();
         const message = err.msg || err.message || 'Invalid value';
         
-        // Map backend field names to frontend field names
+        // Map backend field names to frontend field names (case-insensitive)
         const fieldMap: {[key: string]: string} = {
+          'sessiondate': 'sessionDate',
           'sessionDate': 'sessionDate',
+          'durationminutes': 'duration',
           'durationMinutes': 'duration',
           'duration': 'duration',
+          'treatmentnotes': 'treatmentNotes',
           'treatmentNotes': 'treatmentNotes',
+          'progressnotes': 'progressNotes',
           'progressNotes': 'progressNotes',
+          'feecharged': 'feeCharged',
+          'feeCharged': 'feeCharged',
         };
         
-        const frontendField = fieldMap[field] || field;
-        newErrors[frontendField] = message;
+        // Normalize field name for lookup
+        const normalizedField = field?.toLowerCase() || '';
+        const frontendField = fieldMap[normalizedField] || fieldMap[field] || field;
+        
+        // Always set the error, even if field mapping fails
+        if (frontendField) {
+          newErrors[frontendField] = message;
+        } else {
+          // If we can't map the field, try to extract it from the message
+          const messageLower = message.toLowerCase();
+          if (messageLower.includes('date') || messageLower.includes('session date')) {
+            newErrors.sessionDate = message;
+          } else if (messageLower.includes('duration')) {
+            newErrors.duration = message;
+          } else if (messageLower.includes('treatment')) {
+            newErrors.treatmentNotes = message;
+          } else if (messageLower.includes('progress')) {
+            newErrors.progressNotes = message;
+          } else if (messageLower.includes('fee')) {
+            newErrors.feeCharged = message;
+          } else {
+            // Fallback: show in general error
+            newErrors.general = message;
+          }
+        }
       });
-    } else if (error?.message) {
-      // If single error message, try to extract field name
+    } 
+    // Check if error has a field property (from backend custom errors)
+    else if (error?.field && error?.message) {
+      // Backend explicitly specified the field
+      const fieldMap: {[key: string]: string} = {
+        'sessionDate': 'sessionDate',
+        'durationMinutes': 'duration',
+        'duration': 'duration',
+        'treatmentNotes': 'treatmentNotes',
+        'progressNotes': 'progressNotes',
+        'feeCharged': 'feeCharged',
+      };
+      const frontendField = fieldMap[error.field] || error.field;
+      newErrors[frontendField] = error.message;
+    }
+    // Check if error has a single message and try to extract field
+    else if (error?.message) {
       const message = error.message.toLowerCase();
       if (message.includes('date') || message.includes('session date')) {
         newErrors.sessionDate = error.message;
@@ -345,11 +387,36 @@ export default function DoctorPatientProfileScreen() {
         newErrors.treatmentNotes = error.message;
       } else if (message.includes('progress')) {
         newErrors.progressNotes = error.message;
+      } else if (message.includes('fee')) {
+        newErrors.feeCharged = error.message;
+      } else {
+        // If we can't determine the field, show general error
+        newErrors.general = error.message;
       }
     }
     
     if (Object.keys(newErrors).length > 0) {
       setSessionErrors(newErrors);
+      // Show alert for all validation errors
+      const errorMessages = Object.values(newErrors);
+      if (errorMessages.length > 0) {
+        if (errorMessages.length === 1) {
+          // Single error - show it directly
+          Alert.alert('Validation Error', errorMessages[0]);
+        } else {
+          // Multiple errors - show summary
+          const errorSummary = errorMessages.slice(0, 3).join('\n• ');
+          const remainingCount = errorMessages.length > 3 ? `\n...and ${errorMessages.length - 3} more error(s)` : '';
+          Alert.alert(
+            'Validation Errors',
+            `Please fix the following:\n• ${errorSummary}${remainingCount}`,
+            [{ text: 'OK' }]
+          );
+        }
+      }
+    } else if (error?.message) {
+      // If no field-specific errors but has general message, show it
+      Alert.alert('Error', error.message);
     }
   };
 
@@ -400,9 +467,6 @@ export default function DoctorPatientProfileScreen() {
       };
 
       // Optional fields
-      if (painLevel) {
-        sessionData.painLevel = parseInt(painLevel);
-      }
       if (patient?.sessionFee) {
         sessionData.feeCharged = patient.sessionFee;
       }
@@ -431,17 +495,34 @@ export default function DoctorPatientProfileScreen() {
         await loadSessions();
       } else {
         // Handle backend validation errors
-        if (result.message) {
+        console.log('Session creation failed, result:', result);
+        const resultAny = result as any;
+        if (resultAny.errorData && Object.keys(resultAny.errorData).length > 0) {
+          // Pass full error data including field information
+          console.log('Handling errorData:', resultAny.errorData);
+          handleBackendSessionErrors(resultAny.errorData);
+        } else if (resultAny.errors && resultAny.errors.length > 0) {
+          // Handle validation errors array
+          console.log('Handling errors array:', resultAny.errors);
+          handleBackendSessionErrors({ errors: resultAny.errors, message: result.message });
+        } else if (result.message) {
+          // Handle single error message
+          console.log('Handling single message:', result.message);
           handleBackendSessionErrors({ message: result.message });
         } else {
           Alert.alert('Error', result.message || 'Failed to save session. Please try again.');
         }
       }
     } catch (error: any) {
+      setSubmitting(false);
+      console.error('Session creation error (catch block):', error);
+      console.error('Error response:', error?.response);
       // Handle API errors
       if (error?.response?.data) {
+        console.log('Handling error.response.data:', error.response.data);
         handleBackendSessionErrors(error.response.data);
       } else if (error?.message) {
+        console.log('Handling error.message:', error.message);
         handleBackendSessionErrors({ message: error.message });
       } else {
         Alert.alert('Error', 'Failed to save session. Please try again.');
@@ -715,12 +796,6 @@ export default function DoctorPatientProfileScreen() {
   };
 
 
-  const painLevels = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
-
-  const handlePainLevelSelect = (level: string) => {
-    setPainLevel(level);
-    setShowPainLevelModal(false);
-  };
 
 
 
@@ -776,7 +851,6 @@ export default function DoctorPatientProfileScreen() {
         videos: videosCount,
         photoUrls: photoUrls,
         videoUrls: videoUrls,
-        painLevel: session.painLevel,
         fee: session.feeCharged,
         nextAppointment: session.nextAppointment
       };
@@ -891,7 +965,18 @@ export default function DoctorPatientProfileScreen() {
             </View>
           ) : (
             sessionHistory.map((session) => (
-            <View key={session.id} style={styles.sessionCard}>
+            <TouchableOpacity 
+              key={session.id} 
+              style={styles.sessionCard}
+              onPress={() => {
+                // Make entire card clickable if it has media
+                if (session.photos > 0 || session.videos > 0) {
+                  handleViewSessionMedia(session);
+                }
+              }}
+              activeOpacity={(session.photos > 0 || session.videos > 0) ? 0.7 : 1}
+              disabled={!(session.photos > 0 || session.videos > 0)}
+            >
               <View style={styles.sessionCardHeader}>
                 <Text style={styles.sessionTitle}>
                   Session #{session.sessionNumber} - {session.date}
@@ -909,22 +994,18 @@ export default function DoctorPatientProfileScreen() {
               
               {(session.photos > 0 || session.videos > 0) && (
                 <View style={styles.mediaButtons}>
-                  {(session.photos > 0 || session.videos > 0) && (
-                    <TouchableOpacity 
-                      style={styles.viewMediaButton}
-                      onPress={() => handleViewSessionMedia(session)}
-                    >
-                      <Ionicons name="images" size={16} color="white" />
-                      <Text style={styles.mediaButtonText}>
-                        {session.photos > 0 && `${session.photos} Photo${session.photos > 1 ? 's' : ''}`}
-                        {session.photos > 0 && session.videos > 0 && ' • '}
-                        {session.videos > 0 && `${session.videos} Video${session.videos > 1 ? 's' : ''}`}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                  <View style={styles.mediaInfo}>
+                    <Ionicons name="images" size={16} color="#6B46C1" />
+                    <Text style={styles.mediaInfoText}>
+                      {session.photos > 0 && `${session.photos} Photo${session.photos > 1 ? 's' : ''}`}
+                      {session.photos > 0 && session.videos > 0 && ' • '}
+                      {session.videos > 0 && `${session.videos} Video${session.videos > 1 ? 's' : ''}`}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color="#9CA3AF" style={{ marginLeft: 'auto' }} />
+                  </View>
                 </View>
               )}
-            </View>
+            </TouchableOpacity>
             ))
           )}
         </View>
@@ -1051,7 +1132,7 @@ export default function DoctorPatientProfileScreen() {
                 <Text style={styles.inputLabel}>Progress Notes</Text>
                 <TextInput
                   style={[styles.input, styles.textArea, sessionErrors.progressNotes && styles.inputError]}
-                  placeholder="Patient's progress, improvements, pain levels..."
+                  placeholder="Patient's progress, improvements..."
                   placeholderTextColor="#9CA3AF"
                   value={progressNotes}
                   onChangeText={(text) => {
@@ -1122,20 +1203,6 @@ export default function DoctorPatientProfileScreen() {
                 )}
               </View>
 
-              {/* Pain Level */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Pain Level (1-10)</Text>
-                <TouchableOpacity 
-                  style={styles.dropdownContainer}
-                  onPress={() => setShowPainLevelModal(true)}
-                >
-                  <Text style={[styles.dropdownText, painLevel ? styles.dropdownTextSelected : styles.dropdownTextPlaceholder]}>
-                    {painLevel || "Select"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
-                </TouchableOpacity>
-              </View>
-
               {/* Action Buttons */}
               <View style={styles.buttonContainer}>
                 <TouchableOpacity 
@@ -1155,39 +1222,6 @@ export default function DoctorPatientProfileScreen() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Pain Level Modal */}
-      <Modal
-        visible={showPainLevelModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowPainLevelModal(false)}
-      >
-        <View style={styles.painLevelModalOverlay}>
-          <View style={styles.painLevelModal}>
-            <View style={styles.painLevelModalHeader}>
-              <Text style={styles.painLevelModalTitle}>Select Pain Level</Text>
-              <TouchableOpacity onPress={() => setShowPainLevelModal(false)}>
-                <Ionicons name="close" size={24} color="#374151" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.painLevelModalContent}>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((level) => (
-                <TouchableOpacity
-                  key={level}
-                  style={styles.painLevelOption}
-                  onPress={() => {
-                    setPainLevel(level.toString());
-                    setShowPainLevelModal(false);
-                  }}
-                >
-                  <Text style={styles.painLevelOptionText}>{level}</Text>
-                </TouchableOpacity>
-              ))}
             </ScrollView>
           </View>
         </View>
@@ -1727,9 +1761,22 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   mediaButtons: {
-    flexDirection: 'row',
     marginTop: 12,
+  },
+  mediaInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
     gap: 8,
+  },
+  mediaInfoText: {
+    color: '#6B46C1',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
   },
   photoButton: {
     flexDirection: 'row',
@@ -1949,72 +1996,6 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: '#3B82F6',
     fontSize: 16,
-    fontWeight: '600',
-  },
-  // Pain Level Modal Styles
-  painLevelModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  painLevelModal: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    margin: 20,
-    maxHeight: '60%',
-    width: '80%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  painLevelModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  painLevelModalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  painLevelModalContent: {
-    maxHeight: 300,
-  },
-  painLevelOption: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  painLevelOptionText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  painLevelItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  painLevelItemSelected: {
-    backgroundColor: '#EBF4FF',
-  },
-  painLevelItemText: {
-    fontSize: 16,
-    color: '#374151',
-    textAlign: 'center',
-  },
-  painLevelItemTextSelected: {
-    color: '#3B82F6',
     fontWeight: '600',
   },
   // Date Picker Modal Styles

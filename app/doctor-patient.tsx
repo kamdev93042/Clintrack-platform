@@ -20,6 +20,7 @@ export default function DoctorPatientScreen() {
   const [sessionFee, setSessionFee] = useState('800');
   const [startDate, setStartDate] = useState('');
   const [additionalNotes, setAdditionalNotes] = useState('');
+  const [paymentType, setPaymentType] = useState<'one-time' | 'recurring'>('one-time');
   const [showGenderModal, setShowGenderModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -123,6 +124,7 @@ export default function DoctorPatientScreen() {
     setSessionFee('800');
     setStartDate('');
     setAdditionalNotes('');
+    setPaymentType('one-time');
     // Clear errors
     setErrors({});
   };
@@ -171,35 +173,104 @@ export default function DoctorPatientScreen() {
   const handleBackendErrors = (error: any) => {
     const newErrors: {[key: string]: string} = {};
     
-    // Check if error has validation errors array
+    // Check if error has validation errors array (from express-validator)
     if (error?.errors && Array.isArray(error.errors)) {
       error.errors.forEach((err: any) => {
-        const field = err.path || err.param || err.field;
+        // Try multiple ways to get the field name
+        const field = err.path || err.param || err.field || err.location || err.msg?.split(' ')[0]?.toLowerCase();
         const message = err.msg || err.message || 'Invalid value';
         
-        // Map backend field names to frontend field names
+        // Map backend field names to frontend field names (case-insensitive)
         const fieldMap: {[key: string]: string} = {
           'name': 'patientName',
+          'patientname': 'patientName',
           'patientName': 'patientName',
           'age': 'age',
           'gender': 'gender',
+          'phonenumber': 'phoneNumber',
           'phoneNumber': 'phoneNumber',
           'email': 'email',
+          'medicalcondition': 'medicalCondition',
           'medicalCondition': 'medicalCondition',
+          'sessionfee': 'sessionFee',
           'sessionFee': 'sessionFee',
+          'startdate': 'startDate',
           'startDate': 'startDate',
+          'paymenttype': 'paymentType',
+          'paymentType': 'paymentType',
+          'recurringstartdate': 'recurringStartDate',
+          'recurringStartDate': 'recurringStartDate',
         };
         
-        const frontendField = fieldMap[field] || field;
-        newErrors[frontendField] = message;
+        // Normalize field name for lookup
+        const normalizedField = field?.toLowerCase() || '';
+        const frontendField = fieldMap[normalizedField] || fieldMap[field] || field;
+        
+        // Always set the error, even if field mapping fails
+        if (frontendField) {
+          newErrors[frontendField] = message;
+        } else {
+          // If we can't map the field, try to extract it from the message
+          const messageLower = message.toLowerCase();
+          if (messageLower.includes('phone')) {
+            newErrors.phoneNumber = message;
+          } else if (messageLower.includes('email')) {
+            newErrors.email = message;
+          } else if (messageLower.includes('name')) {
+            newErrors.patientName = message;
+          } else if (messageLower.includes('age')) {
+            newErrors.age = message;
+          } else if (messageLower.includes('gender')) {
+            newErrors.gender = message;
+          } else if (messageLower.includes('condition') || messageLower.includes('medical')) {
+            newErrors.medicalCondition = message;
+          } else if (messageLower.includes('session fee') || messageLower.includes('fee')) {
+            newErrors.sessionFee = message;
+          } else if (messageLower.includes('date')) {
+            newErrors.startDate = message;
+          } else {
+            // Fallback: show in general error
+            newErrors.general = message;
+          }
+        }
       });
-    } else if (error?.message) {
-      // If single error message, try to extract field name
+    } 
+    // Check if error has a field property (from backend custom errors)
+    else if (error?.field && error?.message) {
+      // Backend explicitly specified the field
+      const fieldMap: {[key: string]: string} = {
+        'phoneNumber': 'phoneNumber',
+        'email': 'email',
+        'name': 'patientName',
+        'patientName': 'patientName',
+        'age': 'age',
+        'gender': 'gender',
+        'medicalCondition': 'medicalCondition',
+        'sessionFee': 'sessionFee',
+        'startDate': 'startDate',
+        'paymentType': 'paymentType',
+        'recurringStartDate': 'recurringStartDate',
+      };
+      const frontendField = fieldMap[error.field] || error.field;
+      newErrors[frontendField] = error.message;
+    }
+    // Check if error has a single message and try to extract field
+    else if (error?.message) {
       const message = error.message.toLowerCase();
-      if (message.includes('email')) {
-        newErrors.email = error.message;
-      } else if (message.includes('phone')) {
+      // Check for duplicate phone number error
+      if (message.includes('already exists') || message.includes('already registered')) {
+        if (message.includes('phone') || message.includes('phone number')) {
+          newErrors.phoneNumber = error.message;
+        } else if (message.includes('email')) {
+          newErrors.email = error.message;
+        } else {
+          // Generic "already exists" - default to phone number as most common
+          newErrors.phoneNumber = error.message;
+        }
+      } else if (message.includes('phone') || message.includes('phone number')) {
         newErrors.phoneNumber = error.message;
+      } else if (message.includes('email')) {
+        newErrors.email = error.message;
       } else if (message.includes('name')) {
         newErrors.patientName = error.message;
       } else if (message.includes('age')) {
@@ -208,15 +279,41 @@ export default function DoctorPatientScreen() {
         newErrors.gender = error.message;
       } else if (message.includes('condition') || message.includes('medical')) {
         newErrors.medicalCondition = error.message;
-      } else if (message.includes('session fee') || message.includes('sessionfee')) {
+      } else if (message.includes('session fee') || message.includes('sessionfee') || message.includes('fee')) {
         newErrors.sessionFee = error.message;
       } else if (message.includes('date') || message.includes('start date')) {
         newErrors.startDate = error.message;
+      } else {
+        // If we can't determine the field, show general error
+        newErrors.general = error.message;
       }
     }
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      // Show alert for all validation errors
+      const errorMessages = Object.values(newErrors);
+      if (errorMessages.length > 0) {
+        // Show specific alert for duplicate phone number
+        if (newErrors.phoneNumber && (errorMessages[0].includes('already exists') || errorMessages[0].includes('already registered'))) {
+          Alert.alert('Duplicate Phone Number', errorMessages[0]);
+        } else if (errorMessages.length === 1) {
+          // Single error - show it directly
+          Alert.alert('Validation Error', errorMessages[0]);
+        } else {
+          // Multiple errors - show summary
+          const errorSummary = errorMessages.slice(0, 3).join('\n• ');
+          const remainingCount = errorMessages.length > 3 ? `\n...and ${errorMessages.length - 3} more error(s)` : '';
+          Alert.alert(
+            'Validation Errors',
+            `Please fix the following:\n• ${errorSummary}${remainingCount}`,
+            [{ text: 'OK' }]
+          );
+        }
+      }
+    } else if (error?.message) {
+      // If no field-specific errors but has general message, show it
+      Alert.alert('Error', error.message);
     }
   };
 
@@ -246,6 +343,10 @@ export default function DoctorPatientScreen() {
     
     if (!medicalCondition.trim()) {
       newErrors.medicalCondition = 'Medical condition is required';
+    } else if (medicalCondition.trim().length < 5) {
+      newErrors.medicalCondition = 'Medical condition must be at least 5 characters';
+    } else if (medicalCondition.trim().length > 500) {
+      newErrors.medicalCondition = 'Medical condition cannot exceed 500 characters';
     }
     
     const sessionFeeError = validateSessionFee(sessionFee);
@@ -282,7 +383,8 @@ export default function DoctorPatientScreen() {
         sessionFee: parseFloat(sessionFee) || 800,
         startDate: formattedStartDate,
         additionalNotes: additionalNotes || undefined,
-        email: email || undefined
+        email: email || undefined,
+        paymentType: paymentType
       };
 
       const result = await PatientService.addPatient(patientData);
@@ -293,18 +395,34 @@ export default function DoctorPatientScreen() {
         // Reload patients list
         await loadPatients();
       } else {
-        // Handle backend validation errors
-        if (result.message) {
+        // Handle backend validation errors - pass full error data
+        console.log('Patient creation failed, result:', result);
+        if (result.errorData && Object.keys(result.errorData).length > 0) {
+          // Pass full error data including field information
+          console.log('Handling errorData:', result.errorData);
+          handleBackendErrors(result.errorData);
+        } else if (result.errors && result.errors.length > 0) {
+          // Handle validation errors array
+          console.log('Handling errors array:', result.errors);
+          handleBackendErrors({ errors: result.errors, message: result.message });
+        } else if (result.message) {
+          // Handle single error message
+          console.log('Handling single message:', result.message);
           handleBackendErrors({ message: result.message });
         } else {
           Alert.alert('Error', result.message || 'Failed to add patient');
         }
       }
     } catch (error: any) {
+      setSubmitting(false);
+      console.error('Patient creation error (catch block):', error);
+      console.error('Error response:', error?.response);
       // Handle API errors
       if (error?.response?.data) {
+        console.log('Handling error.response.data:', error.response.data);
         handleBackendErrors(error.response.data);
       } else if (error?.message) {
+        console.log('Handling error.message:', error.message);
         handleBackendErrors({ message: error.message });
       } else {
         Alert.alert('Error', 'Failed to add patient. Please try again.');
@@ -446,6 +564,7 @@ export default function DoctorPatientScreen() {
       lastSession: lastSessionText,
       fee: `₹${patient.sessionFee}`,
       startDate: formatDate(patient.startDate),
+      paymentType: patient.paymentType || 'one-time',
       status: statusInfo.text,
       statusColor: statusInfo.bgColor,
       textColor: statusInfo.color,
@@ -500,6 +619,19 @@ export default function DoctorPatientScreen() {
                   <Text style={styles.sessionInfo}>
                     {formattedPatient.lastSession} • Fee: {formattedPatient.fee}
                   </Text>
+                  <View style={styles.paymentTypeBadge}>
+                    <Ionicons 
+                      name={formattedPatient.paymentType === 'recurring' ? 'repeat' : 'calendar'} 
+                      size={12} 
+                      color={formattedPatient.paymentType === 'recurring' ? '#6B46C1' : '#6B7280'} 
+                    />
+                    <Text style={[
+                      styles.paymentTypeBadgeText,
+                      formattedPatient.paymentType === 'recurring' && styles.paymentTypeBadgeTextRecurring
+                    ]}>
+                      {formattedPatient.paymentType === 'recurring' ? 'Recurring' : 'One Time'}
+                    </Text>
+                  </View>
                   <View style={styles.actionRow}>
                     <Ionicons name="hand-left" size={16} color="#F59E0B" />
                     <Text style={styles.actionText}>Tap to view details & add session</Text>
@@ -713,6 +845,57 @@ export default function DoctorPatientScreen() {
                   {errors.medicalCondition && <Text style={styles.errorText}>{errors.medicalCondition}</Text>}
                 </View>
 
+                {/* Payment Type Selection */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.inputLabel}>Payment Type</Text>
+                  <View style={styles.paymentTypeContainer}>
+                    <TouchableOpacity
+                      style={[
+                        styles.paymentTypeOption,
+                        paymentType === 'one-time' && styles.paymentTypeOptionSelected
+                      ]}
+                      onPress={() => setPaymentType('one-time')}
+                    >
+                      <View style={styles.paymentTypeHeader}>
+                        <View style={styles.radioButton}>
+                          {paymentType === 'one-time' && <View style={styles.radioButtonInner} />}
+                        </View>
+                        <Text style={[
+                          styles.paymentTypeText,
+                          paymentType === 'one-time' && styles.paymentTypeTextSelected
+                        ]}>
+                          One Time
+                        </Text>
+                      </View>
+                      <Text style={styles.paymentTypeDescription}>
+                        Income from sessions only
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[
+                        styles.paymentTypeOption,
+                        paymentType === 'recurring' && styles.paymentTypeOptionSelected
+                      ]}
+                      onPress={() => setPaymentType('recurring')}
+                    >
+                      <View style={styles.paymentTypeHeader}>
+                        <View style={styles.radioButton}>
+                          {paymentType === 'recurring' && <View style={styles.radioButtonInner} />}
+                        </View>
+                        <Text style={[
+                          styles.paymentTypeText,
+                          paymentType === 'recurring' && styles.paymentTypeTextSelected
+                        ]}>
+                          Recurring
+                        </Text>
+                      </View>
+                      <Text style={styles.paymentTypeDescription}>
+                        Daily income while patient is active
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
                 {/* Session Fee and Start Date Row */}
                 <View style={styles.rowContainer}>
                   <View style={[styles.inputContainer, styles.halfWidth]}>
@@ -766,11 +949,11 @@ export default function DoctorPatientScreen() {
                 {/* Action Buttons */}
                 <View style={styles.buttonContainer}>
                   <TouchableOpacity 
-                    style={[styles.addButton, submitting && styles.addButtonDisabled]} 
+                    style={[styles.submitButton, submitting && styles.addButtonDisabled]} 
                     onPress={handleSubmitPatient}
                     disabled={submitting}
                   >
-                    <Text style={styles.addButtonText}>
+                    <Text style={styles.submitButtonText}>
                       {submitting ? 'Adding Patient...' : 'Add Patient'}
                     </Text>
                   </TouchableOpacity>
@@ -1288,20 +1471,54 @@ const styles = StyleSheet.create({
     textAlignVertical: 'top',
   },
   buttonContainer: {
-    marginTop: 20,
+    marginTop: 24,
+  },
+  submitButton: {
+    backgroundColor: '#6B46C1',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#6B46C1',
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 5,
+  },
+  submitButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
   cancelButton: {
     backgroundColor: 'white',
-    borderWidth: 1,
-    borderColor: '#6B46C1',
-    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    borderRadius: 12,
     paddingVertical: 16,
+    paddingHorizontal: 24,
     alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   cancelButtonText: {
-    color: '#6B46C1',
+    color: '#6B7280',
     fontSize: 16,
     fontWeight: '600',
+    letterSpacing: 0.3,
   },
   // Dropdown Container
   dropdownContainer: {
@@ -1445,7 +1662,85 @@ const styles = StyleSheet.create({
   },
   calendarDayTextSelected: {
     color: 'white',
-    fontWeight: 'bold',
+  },
+  // Payment Type Selection Styles
+  paymentTypeContainer: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  paymentTypeOption: {
+    flex: 1,
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 2,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#FFFFFF',
+  },
+  paymentTypeHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 4,
+  },
+  paymentTypeOptionSelected: {
+    borderColor: '#6B46C1',
+    backgroundColor: '#F3F4F6',
+  },
+  radioButton: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 2,
+    borderColor: '#9CA3AF',
+    marginRight: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  radioButtonInner: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#6B46C1',
+  },
+  paymentTypeText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginLeft: 8,
+  },
+  paymentTypeTextSelected: {
+    color: '#6B46C1',
+    fontWeight: '600',
+  },
+  paymentTypeDescription: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: 4,
+    paddingLeft: 28, // Align with text (radio button width 20 + marginRight 8)
+  },
+  paymentTypeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    marginTop: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  paymentTypeBadgeText: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginLeft: 4,
+  },
+  paymentTypeBadgeTextRecurring: {
+    color: '#6B46C1',
   },
   calendarDayTextToday: {
     color: '#6B46C1',

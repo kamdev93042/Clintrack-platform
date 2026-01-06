@@ -31,7 +31,7 @@ export default function SubscriptionScreen() {
   const [subscription, setSubscription] = useState<any>(null);
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
+  const [processing, setProcessing] = useState<string | null>(null); // Track which plan is processing
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
@@ -67,17 +67,24 @@ export default function SubscriptionScreen() {
     }
   };
 
+  const [clinicSubscriptionInfo, setClinicSubscriptionInfo] = useState<any>(null);
+
   const loadPlans = async () => {
     try {
       console.log('📋 Loading plans...');
       const response = await SubscriptionService.getPlans();
       console.log('📋 Plans response:', response);
       if (response.success) {
-        setPlans(response.data);
-        console.log('✅ Plans loaded:', response.data.length, 'plans');
+        setPlans(response.data || []);
+        // Check if there's clinic subscription info
+        if (response.clinicSubscriptionInfo) {
+          setClinicSubscriptionInfo(response.clinicSubscriptionInfo);
+        }
+        console.log('✅ Plans loaded:', (response.data || []).length, 'plans');
       } else {
-        console.error('❌ Failed to load plans:', response.message);
-        Alert.alert('Error', response.message || 'Failed to load plans');
+        const errorMessage = (response as any).message || 'Failed to load plans';
+        console.error('❌ Failed to load plans:', errorMessage);
+        Alert.alert('Error', errorMessage);
       }
     } catch (error: any) {
       console.error('❌ Load plans error:', error);
@@ -103,7 +110,7 @@ export default function SubscriptionScreen() {
     }
 
     if (processing) {
-      console.log('⚠️ Already processing, ignoring click');
+      console.log('⚠️ Already processing plan:', processing, '- ignoring click');
       return;
     }
 
@@ -132,8 +139,8 @@ export default function SubscriptionScreen() {
     }
 
     try {
-      console.log('🔄 Starting payment process...');
-      setProcessing(true);
+      console.log('🔄 Starting payment process for plan:', plan.id);
+      setProcessing(plan.id); // Set which plan is processing
 
       // Create payment order
       console.log('📦 Creating payment order for plan:', plan.id);
@@ -210,15 +217,23 @@ export default function SubscriptionScreen() {
         return;
       }
       
-      if (error.code === 'NETWORK_ERROR') {
-        Alert.alert('Network Error', 'Please check your internet connection');
+      // Show proper error message
+      const errorMessage = error?.message || 
+                          error?.response?.data?.message || 
+                          error?.toString() || 
+                          'Failed to create payment order. Please check your connection and try again.';
+      
+      console.error('❌ Error message to show:', errorMessage);
+      
+      if (error.code === 'NETWORK_ERROR' || error.isNetworkError) {
+        Alert.alert('Network Error', 'Please check your internet connection and try again.');
       } else if (error.code === 'BAD_REQUEST_ERROR') {
-        Alert.alert('Payment Error', error.description || 'Payment failed');
+        Alert.alert('Payment Error', error.description || errorMessage);
       } else {
-        Alert.alert('Error', error.message || 'Payment failed. Please try again.');
+        Alert.alert('Error', errorMessage);
       }
     } finally {
-      setProcessing(false);
+      setProcessing(null); // Clear processing state
       console.log('✅ Payment process completed');
     }
   };
@@ -281,7 +296,21 @@ export default function SubscriptionScreen() {
             <Text style={styles.sectionTitle}>Current Plan</Text>
             <View style={styles.planInfo}>
               <View style={styles.planHeader}>
-                <Text style={styles.planName}>{subscription.planName}</Text>
+                <View style={styles.planNameContainer}>
+                  <Text style={styles.planName}>{subscription.planName}</Text>
+                  {subscription.source === 'clinic_owner' && (
+                    <View style={styles.clinicBadge}>
+                      <Ionicons name="business" size={12} color="#6B46C1" />
+                      <Text style={styles.clinicBadgeText}>Via Clinic</Text>
+                    </View>
+                  )}
+                  {subscription.source === 'doctor_own' && (
+                    <View style={styles.personalBadge}>
+                      <Ionicons name="person" size={12} color="#10B981" />
+                      <Text style={styles.personalBadgeText}>Personal</Text>
+                    </View>
+                  )}
+                </View>
                 <View
                   style={[
                     styles.statusBadge,
@@ -291,6 +320,14 @@ export default function SubscriptionScreen() {
                   <Text style={styles.statusText}>{getStatusBadge(subscription.status)}</Text>
                 </View>
               </View>
+              {subscription.source === 'clinic_owner' && subscription.clinicOwnerName && (
+                <View style={styles.clinicInfo}>
+                  <Ionicons name="business-outline" size={16} color="#6B46C1" />
+                  <Text style={styles.clinicInfoText}>
+                    Covered by {subscription.clinicOwnerName}
+                  </Text>
+                </View>
+              )}
               {subscription.daysRemaining > 0 && (
                 <Text style={styles.daysRemaining}>
                   {subscription.daysRemaining} days remaining
@@ -301,13 +338,51 @@ export default function SubscriptionScreen() {
                   Expires: {new Date(subscription.expiryDate).toLocaleDateString()}
                 </Text>
               )}
+              {subscription.features && (
+                <View style={styles.featuresInfo}>
+                  <Text style={styles.featuresTitle}>Your Benefits:</Text>
+                  <View style={styles.featureRow}>
+                    <Ionicons name="people-outline" size={16} color="#6B46C1" />
+                    <Text style={styles.featureTextRow}>
+                      {subscription.features.maxPatients === -1 
+                        ? 'Unlimited patients' 
+                        : `${subscription.features.maxPatients} patients`}
+                    </Text>
+                  </View>
+                  <View style={styles.featureRow}>
+                    <Ionicons name="cloud-outline" size={16} color="#6B46C1" />
+                    <Text style={styles.featureTextRow}>
+                      {subscription.features.maxStorage === -1 
+                        ? 'Unlimited storage' 
+                        : `${subscription.features.maxStorage} GB storage`}
+                    </Text>
+                  </View>
+                </View>
+              )}
             </View>
+          </View>
+        )}
+
+        {/* Clinic Subscription Info Banner */}
+        {clinicSubscriptionInfo && clinicSubscriptionInfo.hasClinicSubscription && (
+          <View style={styles.clinicBanner}>
+            <Ionicons name="information-circle" size={20} color="#3B82F6" />
+            <Text style={styles.clinicBannerText}>
+              {clinicSubscriptionInfo.message}
+            </Text>
           </View>
         )}
 
         {/* Available Plans Section */}
         <View style={styles.plansSection}>
           <Text style={styles.sectionTitle}>Available Plans</Text>
+          {clinicSubscriptionInfo && clinicSubscriptionInfo.hasClinicSubscription && (
+            <View style={styles.clinicNote}>
+              <Text style={styles.clinicNoteText}>
+                You can still subscribe to a personal plan for additional features or if you leave the clinic.
+              </Text>
+            </View>
+          )}
           {plans.length === 0 ? (
             <View style={styles.noPlansContainer}>
               <Text style={styles.noPlansText}>Loading plans...</Text>
@@ -351,19 +426,19 @@ export default function SubscriptionScreen() {
               <TouchableOpacity
                 style={[
                   styles.subscribeButton,
-                  (subscription?.plan === plan.id || processing) && styles.subscribeButtonDisabled
+                  (subscription?.plan === plan.id || processing === plan.id || (processing && processing !== plan.id)) && styles.subscribeButtonDisabled
                 ]}
                 onPress={() => {
                   console.log('🔘 Subscribe button pressed for plan:', plan.id);
                   console.log('🔘 Current subscription plan:', subscription?.plan);
-                  console.log('🔘 Processing:', processing);
-                  console.log('🔘 Button disabled?', subscription?.plan === plan.id || processing);
+                  console.log('🔘 Processing plan:', processing);
+                  console.log('🔘 Button disabled?', subscription?.plan === plan.id || processing !== null);
                   handleSubscribe(plan);
                 }}
-                disabled={subscription?.plan === plan.id || processing}
+                disabled={subscription?.plan === plan.id || processing !== null}
                 activeOpacity={0.7}
               >
-                {processing ? (
+                {processing === plan.id ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : subscription?.plan === plan.id ? (
                   <Text style={styles.subscribeButtonText}>Current Plan</Text>
@@ -519,6 +594,10 @@ const styles = StyleSheet.create({
     color: '#374151',
     marginLeft: 12
   },
+  featureTextRow: {
+    fontSize: 14,
+    color: '#6B7280'
+  },
   subscribeButton: {
     backgroundColor: '#6B46C1',
     paddingVertical: 14,
@@ -541,6 +620,100 @@ const styles = StyleSheet.create({
   noPlansText: {
     fontSize: 16,
     color: '#6B7280'
+  },
+  planNameContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flex: 1,
+    flexWrap: 'wrap'
+  },
+  clinicBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#EDE9FE',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4
+  },
+  clinicBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#6B46C1'
+  },
+  personalBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#D1FAE5',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4
+  },
+  personalBadgeText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#10B981'
+  },
+  clinicInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 12,
+    gap: 8
+  },
+  clinicInfoText: {
+    fontSize: 14,
+    color: '#6B46C1',
+    fontWeight: '500',
+    flex: 1
+  },
+  clinicBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DBEAFE',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+    gap: 12
+  },
+  clinicBannerText: {
+    fontSize: 14,
+    color: '#1E40AF',
+    flex: 1,
+    lineHeight: 20
+  },
+  clinicNote: {
+    backgroundColor: '#FEF3C7',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 16
+  },
+  clinicNoteText: {
+    fontSize: 13,
+    color: '#92400E',
+    lineHeight: 18
+  },
+  featuresInfo: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB'
+  },
+  featuresTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#374151',
+    marginBottom: 12
+  },
+  featureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+    gap: 8
   }
 });
 

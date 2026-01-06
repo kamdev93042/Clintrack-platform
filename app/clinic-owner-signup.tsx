@@ -24,9 +24,17 @@ export default function ClinicOwnerSignUpScreen() {
 
   // Validation functions
   const validateEmail = (email: string): string => {
-    if (!email) return 'Email is required';
+    if (!email || !email.trim()) return 'Email is required';
+    const trimmedEmail = email.trim();
+    // More comprehensive email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return 'Please enter a valid email address';
+    if (!emailRegex.test(trimmedEmail)) {
+      return 'Please enter a valid email address (e.g., name@example.com)';
+    }
+    // Check for basic email format requirements
+    if (trimmedEmail.length > 254) return 'Email address is too long';
+    if (trimmedEmail.indexOf('@') === -1) return 'Email must contain @ symbol';
+    if (trimmedEmail.split('@')[1]?.indexOf('.') === -1) return 'Email must contain a valid domain (e.g., .com)';
     return '';
   };
 
@@ -66,29 +74,85 @@ export default function ClinicOwnerSignUpScreen() {
     // Check if error has validation errors array
     if (error?.errors && Array.isArray(error.errors)) {
       error.errors.forEach((err: any) => {
-        const field = err.path || err.param || err.field;
+        // Try multiple ways to get the field name
+        const field = err.path || err.param || err.field || err.location || err.msg?.split(' ')[0]?.toLowerCase();
         const message = err.msg || err.message || 'Invalid value';
         
-        // Map backend field names to frontend field names
+        // Map backend field names to frontend field names (case-insensitive)
         const fieldMap: {[key: string]: string} = {
+          'clinicname': 'clinicName',
           'clinicName': 'clinicName',
+          'ownername': 'ownerName',
           'ownerName': 'ownerName',
           'email': 'email',
+          'phonenumber': 'phoneNumber',
           'phoneNumber': 'phoneNumber',
           'address': 'address',
-          'pinCode': 'pincode',
           'pincode': 'pincode',
+          'pinCode': 'pincode',
           'password': 'password',
         };
         
-        const frontendField = fieldMap[field] || field;
-        newErrors[frontendField] = message;
+        // Normalize field name for lookup
+        const normalizedField = field?.toLowerCase() || '';
+        const frontendField = fieldMap[normalizedField] || fieldMap[field] || field;
+        
+        // Always set the error, even if field mapping fails
+        if (frontendField) {
+          newErrors[frontendField] = message;
+        } else {
+          // If we can't map the field, try to extract it from the message
+          const messageLower = message.toLowerCase();
+          if (messageLower.includes('email')) {
+            newErrors.email = message;
+          } else if (messageLower.includes('phone')) {
+            newErrors.phoneNumber = message;
+          } else if (messageLower.includes('password')) {
+            newErrors.password = message;
+          } else if (messageLower.includes('pin')) {
+            newErrors.pincode = message;
+          } else if (messageLower.includes('clinic')) {
+            newErrors.clinicName = message;
+          } else if (messageLower.includes('owner')) {
+            newErrors.ownerName = message;
+          } else if (messageLower.includes('address')) {
+            newErrors.address = message;
+          } else {
+            // Fallback: show in general error
+            newErrors.general = message;
+          }
+        }
       });
-    } else if (error?.message) {
-      // If single error message, try to extract field name
+    } 
+    // Check if error has a field property (from backend custom errors)
+    else if (error?.field && error?.message) {
+      // Backend explicitly specified the field
+      const fieldMap: {[key: string]: string} = {
+        'email': 'email',
+        'phoneNumber': 'phoneNumber',
+        'clinicName': 'clinicName',
+        'ownerName': 'ownerName',
+        'address': 'address',
+        'pinCode': 'pincode',
+        'pincode': 'pincode',
+        'password': 'password',
+      };
+      const frontendField = fieldMap[error.field] || error.field;
+      newErrors[frontendField] = error.message;
+    }
+    // Check if error has a single message and try to extract field
+    else if (error?.message) {
       const message = error.message.toLowerCase();
-      if (message.includes('email')) {
-        newErrors.email = error.message;
+      // Check for duplicate email error
+      if (message.includes('already registered') || message.includes('already exists')) {
+        if (message.includes('email')) {
+          newErrors.email = error.message;
+        } else if (message.includes('phone') || message.includes('phone number')) {
+          newErrors.phoneNumber = error.message;
+        } else {
+          // Generic "already exists" - try to determine field from context
+          newErrors.email = error.message; // Default to email as most common
+        }
       } else if (message.includes('phone')) {
         newErrors.phoneNumber = error.message;
       } else if (message.includes('password')) {
@@ -101,11 +165,45 @@ export default function ClinicOwnerSignUpScreen() {
         newErrors.ownerName = error.message;
       } else if (message.includes('address')) {
         newErrors.address = error.message;
+      } else {
+        // If we can't determine the field, show general error
+        newErrors.general = error.message;
       }
     }
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      
+      // Show alert for all validation errors
+      const errorMessages = Object.values(newErrors);
+      if (errorMessages.length > 0) {
+        // If there's a duplicate email error, show it prominently
+        if (newErrors.email && (newErrors.email.includes('already registered') || newErrors.email.includes('already exists'))) {
+          Alert.alert(
+            'Email Already Registered',
+            newErrors.email,
+            [{ text: 'OK' }]
+          );
+        } else if (newErrors.general) {
+          // General error - show it directly
+          Alert.alert('Error', newErrors.general, [{ text: 'OK' }]);
+        } else if (errorMessages.length === 1) {
+          // Single error - show it directly
+          Alert.alert('Validation Error', errorMessages[0], [{ text: 'OK' }]);
+        } else {
+          // Multiple errors - show summary
+          const errorSummary = errorMessages.slice(0, 3).join('\n• ');
+          const remainingCount = errorMessages.length > 3 ? `\n...and ${errorMessages.length - 3} more error(s)` : '';
+          Alert.alert(
+            'Validation Errors',
+            `Please fix the following:\n• ${errorSummary}${remainingCount}`,
+            [{ text: 'OK' }]
+          );
+        }
+      }
+    } else if (error?.message) {
+      // If no field-specific errors but has general message, show it
+      Alert.alert('Error', error.message, [{ text: 'OK' }]);
     }
   };
 
@@ -174,21 +272,60 @@ export default function ClinicOwnerSignUpScreen() {
         });
       } else {
         setLoading(false);
+        console.log('Registration failed, result:', result);
         // Handle backend validation errors
-        if (result.message) {
-          handleBackendErrors({ message: result.message });
+        // Check if errorData has content (not just empty object)
+        if (result.errorData && Object.keys(result.errorData).length > 0) {
+          // Pass full error data including field information
+          console.log('Handling errorData:', result.errorData);
+          handleBackendErrors(result.errorData);
+        } else if (result.errors && result.errors.length > 0) {
+          // Handle validation errors array
+          console.log('Handling errors array:', result.errors);
+          handleBackendErrors({ errors: result.errors, message: result.message });
+        } else if (result.message) {
+          // Handle single error message
+          console.log('Handling single message:', result.message);
+          // Check if message contains "already registered" to determine field
+          if (result.message.toLowerCase().includes('already registered') || 
+              result.message.toLowerCase().includes('already exists')) {
+            // This is likely a duplicate email error
+            handleBackendErrors({ 
+              message: result.message,
+              field: 'email'
+            });
+          } else {
+            handleBackendErrors({ message: result.message });
+          }
         } else {
           Alert.alert('Error', result.message || 'Registration failed');
         }
       }
     } catch (error: any) {
       setLoading(false);
-      // Handle API errors
+      console.error('Registration error (catch block):', error);
+      console.error('Error response:', error?.response);
+      console.error('Error message:', error?.message);
+      // Handle API errors - check if error has response data
       if (error?.response?.data) {
+        // Backend validation errors are in error.response.data
+        console.log('Handling error.response.data:', error.response.data);
         handleBackendErrors(error.response.data);
       } else if (error?.message) {
-        handleBackendErrors({ message: error.message });
+        // Network or other errors - try to extract field if it's a known error
+        const errorMessage = error.message;
+        console.log('Handling error.message:', errorMessage);
+        if (errorMessage.includes('already registered') || errorMessage.includes('already exists')) {
+          // This is likely a duplicate email error
+          handleBackendErrors({ 
+            message: errorMessage,
+            field: 'email'
+          });
+        } else {
+          handleBackendErrors({ message: errorMessage });
+        }
       } else {
+        console.log('No error message found, showing generic error');
         Alert.alert('Error', 'Registration failed. Please try again.');
       }
     }
@@ -277,6 +414,20 @@ export default function ClinicOwnerSignUpScreen() {
               onChangeText={(text) => {
                 setEmail(text);
                 clearError('email');
+                // Real-time email validation
+                if (text.trim() && errors.email) {
+                  const emailError = validateEmail(text);
+                  if (!emailError) {
+                    clearError('email');
+                  }
+                }
+              }}
+              onBlur={() => {
+                // Validate email when user leaves the field
+                const emailError = validateEmail(email);
+                if (emailError) {
+                  setErrors(prev => ({ ...prev, email: emailError }));
+                }
               }}
               keyboardType="email-address"
               autoCapitalize="none"

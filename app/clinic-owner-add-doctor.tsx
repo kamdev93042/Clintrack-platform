@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, SafeAreaView, StatusBar, ScrollView, Modal, TextInput, Alert, ActivityIndicator, FlatList } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
@@ -18,22 +18,62 @@ export default function ClinicOwnerAddDoctorScreen() {
   const [addingDoctorId, setAddingDoctorId] = useState<string | null>(null);
   const [specialId, setSpecialId] = useState('');
   const [specialIdError, setSpecialIdError] = useState('');
+  const [clinicOwnerPincode, setClinicOwnerPincode] = useState('');
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const lastSearchedPincodeRef = useRef('');
 
   useEffect(() => {
     initializeAuth();
   }, []);
 
+  // Auto-search when pincode changes to 6 digits
+  useEffect(() => {
+    // Only search if pincode is 6 digits, different from last searched, and not currently loading
+    if (pincode.length === 6 && pincode !== lastSearchedPincodeRef.current && !loading) {
+      lastSearchedPincodeRef.current = pincode;
+      handleSearch();
+    } else if (pincode.length === 0) {
+      // If pincode is cleared, reload clinic owner's pincode doctors
+      if (clinicOwnerPincode) {
+        setPincode(clinicOwnerPincode);
+      } else {
+        setDoctors([]);
+        lastSearchedPincodeRef.current = '';
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pincode]);
+
   const initializeAuth = async () => {
     try {
       await ClinicOwnerAuthService.initializeAuth();
+      // Load clinic owner's pin code automatically
+      await loadClinicOwnerPincode();
     } catch (error) {
       console.error('Failed to initialize auth:', error);
     }
   };
 
-  const handleSearch = async () => {
+  const loadClinicOwnerPincode = async () => {
+    try {
+      const clinicOwner = await ClinicOwnerAuthService.getUser();
+      if (clinicOwner && (clinicOwner.pinCode || clinicOwner.pincode)) {
+        const ownerPincode = clinicOwner.pinCode || clinicOwner.pincode;
+        setClinicOwnerPincode(ownerPincode);
+        setPincode(ownerPincode);
+        setIsInitialLoad(false);
+        // Auto-search will be triggered by useEffect when pincode is set
+      } else {
+        setIsInitialLoad(false);
+      }
+    } catch (error) {
+      console.error('Error loading clinic owner pincode:', error);
+      setIsInitialLoad(false);
+    }
+  };
+
+  const handleSearch = async (showAlert = false) => {
     if (!pincode || pincode.length !== 6) {
-      Alert.alert('Error', 'Please enter a valid 6-digit pincode');
       return;
     }
 
@@ -43,16 +83,22 @@ export default function ClinicOwnerAddDoctorScreen() {
       
       if (result.success) {
         setDoctors(result.doctors || []);
-        if (result.doctors.length === 0) {
+        // Only show alert if manually searched and no doctors found
+        if (result.doctors.length === 0 && showAlert) {
           Alert.alert('No Doctors Found', `No doctors found with pincode ${pincode}`);
         }
       } else {
-        Alert.alert('Error', result.message || 'Failed to search doctors');
+        // Only show alert for manual search errors
+        if (showAlert) {
+          Alert.alert('Error', result.message || 'Failed to search doctors');
+        }
         setDoctors([]);
       }
     } catch (error) {
       console.error('Error searching doctors:', error);
-      Alert.alert('Error', 'Failed to search doctors. Please try again.');
+      if (showAlert) {
+        Alert.alert('Error', 'Failed to search doctors. Please try again.');
+      }
       setDoctors([]);
     } finally {
       setLoading(false);
@@ -223,14 +269,17 @@ export default function ClinicOwnerAddDoctorScreen() {
             maxLength={6}
           />
           {pincode.length > 0 && (
-            <TouchableOpacity onPress={() => setPincode('')}>
+            <TouchableOpacity onPress={() => {
+              setPincode('');
+              setDoctors([]);
+            }}>
               <Ionicons name="close-circle" size={20} color="#9CA3AF" />
             </TouchableOpacity>
           )}
         </View>
         <TouchableOpacity 
           style={[styles.searchButton, (!pincode || pincode.length !== 6) && styles.searchButtonDisabled]} 
-          onPress={handleSearch}
+          onPress={() => handleSearch(true)}
           disabled={!pincode || pincode.length !== 6 || loading}
         >
           {loading ? (
@@ -244,8 +293,35 @@ export default function ClinicOwnerAddDoctorScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Info Banner - Show when pincode is clinic owner's pincode */}
+      {pincode.length === 6 && (
+        <View style={styles.infoBanner}>
+          <Ionicons name="information-circle" size={16} color="#3B82F6" />
+          <Text style={styles.infoBannerText}>
+            {pincode === clinicOwnerPincode 
+              ? `Showing all doctors available in your clinic area (Pincode: ${pincode})`
+              : `Showing all doctors available in pincode ${pincode}`
+            }
+          </Text>
+        </View>
+      )}
+
+      {/* Doctors List Header */}
+      {doctors.length > 0 && !loading && (
+        <View style={styles.doctorsListHeader}>
+          <Text style={styles.doctorsListTitle}>
+            Available Doctors ({doctors.length})
+          </Text>
+        </View>
+      )}
+
       {/* Doctors List */}
-      {loading ? (
+      {isInitialLoad ? (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color="#6B46C1" />
+          <Text style={styles.emptyTitle}>Loading doctors...</Text>
+        </View>
+      ) : loading && pincode.length === 6 ? (
         <View style={styles.emptyContainer}>
           <ActivityIndicator size="large" color="#6B46C1" />
           <Text style={styles.emptyTitle}>Searching doctors...</Text>
@@ -310,13 +386,13 @@ export default function ClinicOwnerAddDoctorScreen() {
           }}
           contentContainerStyle={styles.doctorsList}
         />
-      ) : (
+      ) : pincode.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Ionicons name="search-outline" size={64} color="#9CA3AF" />
           <Text style={styles.emptyTitle}>Search for doctors</Text>
           <Text style={styles.emptySubtitle}>Enter a pincode to find doctors in that area</Text>
         </View>
-      )}
+      ) : null}
 
       {/* Add Doctor Modal */}
       <Modal
@@ -503,6 +579,34 @@ const styles = StyleSheet.create({
   },
   doctorsList: {
     padding: 20,
+    paddingTop: 10,
+  },
+  doctorsListHeader: {
+    backgroundColor: 'white',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  doctorsListTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#374151',
+  },
+  infoBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#DBEAFE',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#BFDBFE',
+  },
+  infoBannerText: {
+    fontSize: 14,
+    color: '#1E40AF',
+    flex: 1,
   },
   doctorCard: {
     backgroundColor: 'white',

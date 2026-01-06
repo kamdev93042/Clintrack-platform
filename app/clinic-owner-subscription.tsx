@@ -31,7 +31,7 @@ export default function ClinicOwnerSubscriptionScreen() {
   const [subscription, setSubscription] = useState<any>(null);
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [processing, setProcessing] = useState(false);
+  const [processing, setProcessing] = useState<string | null>(null); // Track which plan is processing
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
@@ -94,7 +94,10 @@ export default function ClinicOwnerSubscriptionScreen() {
       return;
     }
 
-    if (processing) return;
+    if (processing) {
+      console.log('⚠️ Already processing plan:', processing, '- ignoring click');
+      return;
+    }
 
     // Check if Razorpay is available (not on web)
     if (Platform.OS === 'web' || !RazorpayCheckout) {
@@ -107,10 +110,14 @@ export default function ClinicOwnerSubscriptionScreen() {
     }
 
     try {
-      setProcessing(true);
+      console.log('🔄 Starting payment process for plan:', plan.id);
+      setProcessing(plan.id); // Set which plan is processing
 
       // Create payment order
+      console.log('📦 Creating payment order for plan:', plan.id);
       const orderResponse = await SubscriptionService.createPaymentOrder(plan.id);
+      
+      console.log('📦 Order response:', orderResponse);
       
       if (!orderResponse.success) {
         throw new Error(orderResponse.message || 'Failed to create order');
@@ -160,17 +167,38 @@ export default function ClinicOwnerSubscriptionScreen() {
         throw new Error(verifyResponse.message || 'Payment verification failed');
       }
     } catch (error: any) {
-      console.error('Payment error:', error);
+      console.error('❌ Payment error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        description: error.description,
+        response: error.response
+      });
       
-      if (error.code === 'NETWORK_ERROR') {
-        Alert.alert('Network Error', 'Please check your internet connection');
+      // Don't show alert if user cancelled
+      if (error.message && error.message.includes('User cancelled')) {
+        console.log('ℹ️ User cancelled payment');
+        return;
+      }
+      
+      // Show proper error message
+      const errorMessage = error?.message || 
+                          error?.response?.data?.message || 
+                          error?.toString() || 
+                          'Failed to create payment order. Please check your connection and try again.';
+      
+      console.error('❌ Error message to show:', errorMessage);
+      
+      if (error.code === 'NETWORK_ERROR' || error.isNetworkError) {
+        Alert.alert('Network Error', 'Please check your internet connection and try again.');
       } else if (error.code === 'BAD_REQUEST_ERROR') {
-        Alert.alert('Payment Error', error.description || 'Payment failed');
-      } else if (error.message && !error.message.includes('User cancelled')) {
-        Alert.alert('Error', error.message || 'Payment failed');
+        Alert.alert('Payment Error', error.description || errorMessage);
+      } else {
+        Alert.alert('Error', errorMessage);
       }
     } finally {
-      setProcessing(false);
+      setProcessing(null); // Clear processing state
+      console.log('✅ Payment process completed');
     }
   };
 
@@ -303,12 +331,18 @@ export default function ClinicOwnerSubscriptionScreen() {
               <TouchableOpacity
                 style={[
                   styles.subscribeButton,
-                  (subscription?.plan === plan.id || processing) && styles.subscribeButtonDisabled
+                  (subscription?.plan === plan.id || processing === plan.id || (processing && processing !== plan.id)) && styles.subscribeButtonDisabled
                 ]}
-                onPress={() => handleSubscribe(plan)}
-                disabled={subscription?.plan === plan.id || processing}
+                onPress={() => {
+                  console.log('🔘 Subscribe button pressed for plan:', plan.id);
+                  console.log('🔘 Current subscription plan:', subscription?.plan);
+                  console.log('🔘 Processing plan:', processing);
+                  handleSubscribe(plan);
+                }}
+                disabled={subscription?.plan === plan.id || processing !== null}
+                activeOpacity={0.7}
               >
-                {processing ? (
+                {processing === plan.id ? (
                   <ActivityIndicator size="small" color="#FFF" />
                 ) : subscription?.plan === plan.id ? (
                   <Text style={styles.subscribeButtonText}>Current Plan</Text>

@@ -64,35 +64,175 @@ export default function PatientLoginScreen() {
         }, 1000);
       } else {
         setLoading(false);
-        // Show field-level errors for invalid credentials
-        const errorMsg = result.message || 'Login failed';
-        if (errorMsg?.toLowerCase().includes('invalid') || 
-            errorMsg?.toLowerCase().includes('credentials') ||
-            errorMsg?.toLowerCase().includes('incorrect') ||
-            errorMsg?.toLowerCase().includes('wrong') ||
-            errorMsg?.toLowerCase().includes('not found')) {
-          setErrors({
-            mobileNumber: 'Invalid mobile number. Patient not found.'
+        console.log('Patient login failed, result:', result);
+        // Handle backend validation errors
+        const resultAny = result as any;
+        
+        // Check if result has errorData
+        if (resultAny.errorData && Object.keys(resultAny.errorData).length > 0) {
+          const errorData = resultAny.errorData;
+          console.log('Handling errorData:', errorData);
+          
+          // Check if error has validation errors array
+          if (errorData.errors && Array.isArray(errorData.errors)) {
+            errorData.errors.forEach((err: any) => {
+              const field = err.path || err.param || err.field || 'mobileNumber';
+              const message = err.msg || err.message || 'Invalid value';
+              if (field === 'mobileNumber' || field === 'mobile' || message.toLowerCase().includes('mobile')) {
+                setErrors({ mobileNumber: message });
+              }
+            });
+          } 
+          // Check if error has a field property
+          else if (errorData.field && errorData.message) {
+            if (errorData.field === 'mobileNumber' || errorData.field === 'mobile') {
+              setErrors({ mobileNumber: errorData.message });
+            } else {
+              setErrors({ mobileNumber: errorData.message });
+            }
+          }
+          // Check if error has a single message
+          else if (errorData.message) {
+            const errorMessage = errorData.message;
+            const messageLower = errorMessage.toLowerCase();
+            
+            if (messageLower.includes('mobile') || 
+                messageLower.includes('10 digits') || 
+                messageLower.includes('exactly 10') ||
+                messageLower.includes('provide mobile')) {
+              setErrors({ mobileNumber: errorMessage });
+            } else if (messageLower.includes('invalid') || 
+                       messageLower.includes('credentials') || 
+                       messageLower.includes('incorrect') || 
+                       messageLower.includes('wrong') || 
+                       messageLower.includes('not found') ||
+                       messageLower.includes('discharged')) {
+              setErrors({ mobileNumber: errorMessage });
+            } else {
+              setErrors({ mobileNumber: errorMessage });
+            }
+          }
+        }
+        // Check if result has errors array
+        else if (resultAny.errors && resultAny.errors.length > 0) {
+          console.log('Handling errors array:', resultAny.errors);
+          resultAny.errors.forEach((err: any) => {
+            const field = err.path || err.param || err.field || 'mobileNumber';
+            const message = err.msg || err.message || 'Invalid value';
+            if (field === 'mobileNumber' || field === 'mobile' || message.toLowerCase().includes('mobile')) {
+              setErrors({ mobileNumber: message });
+            }
           });
+        }
+        // Check if result has message
+        else if (result.message) {
+          const errorMsg = result.message;
+          const messageLower = errorMsg.toLowerCase();
+          console.log('Handling single message:', errorMsg);
+          
+          if (messageLower.includes('mobile') || 
+              messageLower.includes('10 digits') || 
+              messageLower.includes('exactly 10') ||
+              messageLower.includes('provide mobile')) {
+            setErrors({ mobileNumber: errorMsg });
+          } else if (messageLower.includes('invalid') || 
+                     messageLower.includes('credentials') ||
+                     messageLower.includes('incorrect') ||
+                     messageLower.includes('wrong') ||
+                     messageLower.includes('not found') ||
+                     messageLower.includes('discharged')) {
+            setErrors({ mobileNumber: errorMsg });
+          } else {
+            // Show alert for other errors
+            Alert.alert('Error', errorMsg);
+          }
         } else {
-          Alert.alert('Error', errorMsg);
+          Alert.alert('Error', 'Login failed. Please try again.');
         }
       }
     } catch (error: any) {
       setLoading(false);
-      // Check if it's an invalid credentials error
-      const errorMessage = error?.message || error?.response?.data?.message || 'Login failed. Please try again.';
-      if (errorMessage?.toLowerCase().includes('invalid') || 
-          errorMessage?.toLowerCase().includes('credentials') ||
-          errorMessage?.toLowerCase().includes('incorrect') ||
-          errorMessage?.toLowerCase().includes('wrong') ||
-          errorMessage?.toLowerCase().includes('not found') ||
-          error?.response?.status === 401) {
-        setErrors({
-          mobileNumber: 'Invalid mobile number. Patient not found.'
-        });
-      } else {
-        Alert.alert('Error', errorMessage);
+      console.error('Patient login error (catch block):', error);
+      console.error('Error response:', error?.response);
+      
+      // Handle backend validation errors
+      if (error?.response?.data) {
+        const errorData = error.response.data;
+        console.log('Handling error.response.data:', errorData);
+        
+        // Check if error has validation errors array
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          errorData.errors.forEach((err: any) => {
+            const field = err.path || err.param || err.field || 'mobileNumber';
+            const message = err.msg || err.message || 'Invalid value';
+            if (field === 'mobileNumber' || field === 'mobile' || message.toLowerCase().includes('mobile')) {
+              setErrors({ mobileNumber: message });
+            }
+          });
+        } 
+        // Check if error has a field property
+        else if (errorData.field && errorData.message) {
+          if (errorData.field === 'mobileNumber' || errorData.field === 'mobile') {
+            setErrors({ mobileNumber: errorData.message });
+          } else {
+            setErrors({ mobileNumber: errorData.message });
+          }
+        }
+        // Check if error has a single message
+        else if (errorData.message) {
+          const errorMessage = errorData.message;
+          const messageLower = errorMessage.toLowerCase();
+          
+          // Check for mobile number validation errors
+          if (messageLower.includes('mobile') || 
+              messageLower.includes('10 digits') || 
+              messageLower.includes('exactly 10') ||
+              messageLower.includes('provide mobile')) {
+            setErrors({ mobileNumber: errorMessage });
+          } 
+          // Check for invalid credentials
+          else if (messageLower.includes('invalid') || 
+                   messageLower.includes('credentials') || 
+                   messageLower.includes('incorrect') || 
+                   messageLower.includes('wrong') || 
+                   messageLower.includes('not found') ||
+                   messageLower.includes('discharged')) {
+            setErrors({ mobileNumber: errorMessage });
+          } 
+          // Default: show in mobile number field
+          else {
+            setErrors({ mobileNumber: errorMessage });
+          }
+        }
+      } 
+      // Handle error message directly
+      else if (error?.message) {
+        const errorMessage = error.message;
+        const messageLower = errorMessage.toLowerCase();
+        console.log('Handling error.message:', errorMessage);
+        
+        // Check for mobile number validation errors
+        if (messageLower.includes('mobile') || 
+            messageLower.includes('10 digits') || 
+            messageLower.includes('exactly 10')) {
+          setErrors({ mobileNumber: errorMessage });
+        } 
+        // Check for invalid credentials
+        else if (messageLower.includes('invalid') || 
+                 messageLower.includes('credentials') || 
+                 messageLower.includes('incorrect') || 
+                 messageLower.includes('wrong') || 
+                 messageLower.includes('not found')) {
+          setErrors({ mobileNumber: 'Invalid mobile number. Patient not found.' });
+        } 
+        // Default: show in mobile number field
+        else {
+          setErrors({ mobileNumber: errorMessage });
+        }
+      } 
+      // Fallback
+      else {
+        Alert.alert('Error', 'Login failed. Please try again.');
       }
     }
   };

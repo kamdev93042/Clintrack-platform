@@ -37,9 +37,6 @@ class ClinicOwnerSessionService {
       if (sessionData.progressNotes) {
         formData.append('progressNotes', sessionData.progressNotes);
       }
-      if (sessionData.painLevel) {
-        formData.append('painLevel', sessionData.painLevel.toString());
-      }
       if (sessionData.feeCharged) {
         formData.append('feeCharged', sessionData.feeCharged.toString());
       }

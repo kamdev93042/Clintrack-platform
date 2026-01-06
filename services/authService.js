@@ -1,5 +1,6 @@
 import ApiService from './api';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const TOKEN_KEY = 'clintrack_token';
 const USER_KEY = 'clintrack_user';
@@ -11,29 +12,88 @@ class AuthService {
       let response;
 
       if (idDocument) {
+        console.log('📄 Preparing ID document for upload...');
+        console.log('📄 Document URI:', idDocument.uri);
+        console.log('📄 Document Type:', idDocument.type);
+        console.log('📄 Document Name:', idDocument.name);
+        console.log('📄 Platform:', Platform.OS);
+        
         // Create FormData for file upload
         const formData = new FormData();
         
-        // Add doctor data
+        // Add doctor data first
         Object.keys(doctorData).forEach(key => {
           formData.append(key, doctorData[key]);
         });
 
-        // Add file - React Native FormData format
-        formData.append('idDocument', {
-          uri: idDocument.uri,
-          type: idDocument.type,
-          name: idDocument.name,
-        });
-
-        console.log('Sending FormData with file:', {
-          doctorData,
-          idDocument: {
-            name: idDocument.name,
-            type: idDocument.type,
-            uri: idDocument.uri.substring(0, 50) + '...'
+        // Determine file extension and MIME type
+        const fileExtension = idDocument.name?.split('.').pop()?.toLowerCase() || 'pdf';
+        let mimeType = idDocument.type || 'application/pdf';
+        
+        // Ensure correct MIME type based on extension
+        if (fileExtension === 'jpg' || fileExtension === 'jpeg') {
+          mimeType = 'image/jpeg';
+        } else if (fileExtension === 'png') {
+          mimeType = 'image/png';
+        } else if (fileExtension === 'gif') {
+          mimeType = 'image/gif';
+        } else if (fileExtension === 'pdf') {
+          mimeType = 'application/pdf';
+        }
+        
+        const fileName = idDocument.name || `document.${fileExtension}`;
+        
+        // Handle file upload differently for web vs native platforms
+        if (Platform.OS === 'web') {
+          // For web: Convert blob URI to Blob object
+          console.log('🌐 Web platform detected - converting blob URI to Blob');
+          
+          try {
+            // Fetch the blob URI and convert to Blob
+            const response = await fetch(idDocument.uri);
+            const blob = await response.blob();
+            
+            console.log('📤 Blob created:', {
+              type: blob.type,
+              size: blob.size,
+              fileName: fileName
+            });
+            
+            // Append Blob to FormData (web format)
+            formData.append('idDocument', blob, fileName);
+            
+            console.log('✅ File appended to FormData (web format)');
+          } catch (error) {
+            console.error('❌ Error converting blob URI to Blob:', error);
+            throw new Error('Failed to process file for upload. Please try again.');
           }
-        });
+        } else {
+          // For native platforms (iOS/Android): Use object format with uri, type, name
+          console.log('📱 Native platform detected - using object format');
+          
+          // Ensure URI is valid for native (should start with file:// or content://)
+          if (!idDocument.uri || (!idDocument.uri.startsWith('file://') && !idDocument.uri.startsWith('content://'))) {
+            throw new Error('Invalid file URI. File must be selected from device storage.');
+          }
+          
+          const fileObject = {
+            uri: idDocument.uri,
+            type: mimeType,
+            name: fileName,
+          };
+          
+          console.log('📤 Appending file to FormData (native format):', {
+            uri: idDocument.uri?.substring(0, 50) + '...',
+            type: mimeType,
+            name: fileName,
+            platform: Platform.OS
+          });
+          
+          // Append file object directly - React Native FormData will handle file:// URIs
+          formData.append('idDocument', fileObject);
+          
+          console.log('✅ File appended to FormData (native format)');
+        }
 
         // Make request with FormData
         response = await ApiService.postFormData('/auth/register', formData, {
@@ -55,9 +115,12 @@ class AuthService {
         email: response.email,
       };
     } catch (error) {
+      // Return full error object so frontend can access error details
       return {
         success: false,
         message: error.message || 'Registration failed',
+        errorData: error.response?.data || {},
+        errors: error.response?.data?.errors || []
       };
     }
   }

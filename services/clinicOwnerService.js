@@ -50,6 +50,23 @@ class ClinicOwnerService {
     }
   }
 
+  // Update profile data
+  async updateProfile(profileData) {
+    try {
+      const response = await ApiService.put('/clinic-owner/profile', profileData);
+      return {
+        success: true,
+        message: response.message,
+        clinicOwner: response.clinicOwner,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        message: error.message || 'Failed to update profile',
+      };
+    }
+  }
+
   // Get trends data (patient growth and uploads trend)
   async getTrends() {
     try {

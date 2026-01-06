@@ -167,7 +167,7 @@ class ApiService {
     
     // Get headers with auth (but don't set Content-Type - let fetch set it with boundary)
     const headers = this.getHeaders(options.includeAuth !== false);
-    // Remove Content-Type so fetch can set it automatically with boundary
+    // Remove Content-Type so fetch can set it automatically with boundary for multipart/form-data
     delete headers['Content-Type'];
     
     const config = {
@@ -178,9 +178,12 @@ class ApiService {
     };
 
     try {
-      console.log('Making FormData request to:', url);
+      console.log('📤 Making FormData request to:', url);
+      console.log('📤 FormData body type:', typeof formData);
+      console.log('📤 Config headers:', Object.keys(config.headers));
+      
       const response = await fetch(url, config);
-      console.log('Response status:', response.status);
+      console.log('📥 Response status:', response.status);
       
       // Check if response is JSON
       const contentType = response.headers.get('content-type');
@@ -188,19 +191,31 @@ class ApiService {
         const data = await response.json();
         
         if (!response.ok) {
-          throw new Error(data.message || 'API request failed');
+          // Create error with full response data preserved
+          const error = new Error(data.message || 'API request failed');
+          error.response = { data, status: response.status };
+          throw error;
         }
         
         return data;
       } else {
         // Handle non-JSON response (like HTML error pages)
         const text = await response.text();
-        console.error('Non-JSON response:', text);
-        throw new Error(`Server error: ${response.status} ${response.statusText}`);
+        console.error('❌ Non-JSON response:', text);
+        const error = new Error(`Server error: ${response.status} ${response.statusText}`);
+        error.response = { status: response.status, data: { message: text } };
+        throw error;
       }
     } catch (error) {
-      console.error('API Error:', error);
-      throw error;
+      console.error('❌ API Error:', error);
+      // Preserve response data if it exists
+      if (error.response) {
+        throw error;
+      }
+      // If it's a network error or other error, wrap it
+      const wrappedError = new Error(error.message || 'Network error');
+      wrappedError.originalError = error;
+      throw wrappedError;
     }
   }
 

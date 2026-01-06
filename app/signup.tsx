@@ -18,7 +18,9 @@ export default function SignUpScreen() {
   const [idDocument, setIdDocument] = useState<{name: string, size: string, uri: string, type: string} | null>(null);
   const [pinCode, setPinCode] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showSuccessMessage, setShowSuccessMessage] = useState(false);
   const insets = useSafeAreaInsets();
@@ -43,9 +45,17 @@ export default function SignUpScreen() {
 
   // Validation functions
   const validateEmail = (email: string): string => {
-    if (!email) return 'Email is required';
+    if (!email || !email.trim()) return 'Email is required';
+    const trimmedEmail = email.trim();
+    // More comprehensive email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) return 'Please enter a valid email address';
+    if (!emailRegex.test(trimmedEmail)) {
+      return 'Please enter a valid email address (e.g., name@example.com)';
+    }
+    // Check for basic email format requirements
+    if (trimmedEmail.length > 254) return 'Email address is too long';
+    if (trimmedEmail.indexOf('@') === -1) return 'Email must contain @ symbol';
+    if (trimmedEmail.split('@')[1]?.indexOf('.') === -1) return 'Email must contain a valid domain (e.g., .com)';
     return '';
   };
 
@@ -58,7 +68,29 @@ export default function SignUpScreen() {
 
   const validatePassword = (pwd: string): string => {
     if (!pwd) return 'Password is required';
-    if (pwd.length < 6) return 'Password must be at least 6 characters';
+    if (pwd.length < 6) return 'Password must be at least 6 characters long';
+    
+    // Check for uppercase letter
+    if (!/[A-Z]/.test(pwd)) {
+      return 'Password must contain at least one uppercase letter, one lowercase letter, and one number';
+    }
+    
+    // Check for lowercase letter
+    if (!/[a-z]/.test(pwd)) {
+      return 'Password must contain at least one uppercase letter, one lowercase letter, and one number';
+    }
+    
+    // Check for number
+    if (!/\d/.test(pwd)) {
+      return 'Password must contain at least one uppercase letter, one lowercase letter, and one number';
+    }
+    
+    return '';
+  };
+
+  const validateConfirmPassword = (pwd: string, confirmPwd: string): string => {
+    if (!confirmPwd) return 'Please confirm your password';
+    if (pwd !== confirmPwd) return 'Passwords do not match';
     return '';
   };
 
@@ -92,36 +124,96 @@ export default function SignUpScreen() {
     // Check if error has validation errors array (from express-validator)
     if (error?.errors && Array.isArray(error.errors)) {
       error.errors.forEach((err: any) => {
-        const field = err.path || err.param || err.field || err.location;
+        // Try multiple ways to get the field name
+        const field = err.path || err.param || err.field || err.location || err.msg?.split(' ')[0]?.toLowerCase();
         const message = err.msg || err.message || 'Invalid value';
         
-        // Map backend field names to frontend field names
+        // Map backend field names to frontend field names (case-insensitive)
         const fieldMap: {[key: string]: string} = {
+          'fullname': 'fullName',
           'fullName': 'fullName',
           'email': 'email',
+          'phonenumber': 'phoneNumber',
           'phoneNumber': 'phoneNumber',
           'specialty': 'specialty',
           'password': 'password',
+          'confirmpassword': 'confirmPassword',
+          'confirmPassword': 'confirmPassword',
+          'pincode': 'pinCode',
           'pinCode': 'pinCode',
+          'specialid': 'specialId',
           'specialId': 'specialId',
+          'iddocument': 'idDocument',
           'idDocument': 'idDocument',
         };
         
-        const frontendField = fieldMap[field] || field;
-        newErrors[frontendField] = message;
+        // Normalize field name for lookup
+        const normalizedField = field?.toLowerCase() || '';
+        const frontendField = fieldMap[normalizedField] || fieldMap[field] || field;
+        
+        // Always set the error, even if field mapping fails
+        if (frontendField) {
+          newErrors[frontendField] = message;
+        } else {
+          // If we can't map the field, try to extract it from the message
+          const messageLower = message.toLowerCase();
+          if (messageLower.includes('email')) {
+            newErrors.email = message;
+          } else if (messageLower.includes('phone')) {
+            newErrors.phoneNumber = message;
+          } else if (messageLower.includes('password')) {
+            newErrors.password = message;
+          } else if (messageLower.includes('pin')) {
+            newErrors.pinCode = message;
+          } else if (messageLower.includes('special id')) {
+            newErrors.specialId = message;
+          } else if (messageLower.includes('name')) {
+            newErrors.fullName = message;
+          } else if (messageLower.includes('specialty')) {
+            newErrors.specialty = message;
+          } else {
+            // Fallback: show in general error
+            newErrors.general = message;
+          }
+        }
       });
     } 
+    // Check if error has a field property (from backend custom errors)
+    else if (error?.field && error?.message) {
+      // Backend explicitly specified the field
+      const fieldMap: {[key: string]: string} = {
+        'email': 'email',
+        'phoneNumber': 'phoneNumber',
+        'specialId': 'specialId',
+        'pinCode': 'pinCode',
+        'fullName': 'fullName',
+        'password': 'password',
+        'specialty': 'specialty',
+        'idDocument': 'idDocument',
+      };
+      const frontendField = fieldMap[error.field] || error.field;
+      newErrors[frontendField] = error.message;
+    }
     // Check if error has a single message and try to extract field
     else if (error?.message) {
       const message = error.message.toLowerCase();
-      // Try to match field names in error message
-      if (message.includes('email') || message.includes('invalid email')) {
-        newErrors.email = error.message;
+      // Check for duplicate email error
+      if (message.includes('already registered') || message.includes('already exists')) {
+        if (message.includes('email')) {
+          newErrors.email = error.message;
+        } else if (message.includes('phone') || message.includes('phone number')) {
+          newErrors.phoneNumber = error.message;
+        } else if (message.includes('special id') || message.includes('specialid')) {
+          newErrors.specialId = error.message;
+        } else {
+          // Generic "already exists" - try to determine field from context
+          newErrors.email = error.message; // Default to email as most common
+        }
       } else if (message.includes('phone') || message.includes('phone number')) {
         newErrors.phoneNumber = error.message;
       } else if (message.includes('password')) {
         newErrors.password = error.message;
-      } else if (message.includes('special id') || message.includes('specialid') || message.includes('special id')) {
+      } else if (message.includes('special id') || message.includes('specialid')) {
         newErrors.specialId = error.message;
       } else if (message.includes('pin') || message.includes('pin code')) {
         newErrors.pinCode = error.message;
@@ -133,13 +225,44 @@ export default function SignUpScreen() {
         newErrors.idDocument = error.message;
       } else {
         // If we can't determine the field, show general error
-        // But still try to show it somewhere visible
-        newErrors.email = error.message; // Show in email field as fallback
+        // Show in a general error state
+        newErrors.general = error.message;
       }
     }
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
+      
+      // Show alert for all validation errors
+      const errorMessages = Object.values(newErrors);
+      if (errorMessages.length > 0) {
+        // If there's a duplicate email error, show it prominently
+        if (newErrors.email && (newErrors.email.includes('already registered') || newErrors.email.includes('already exists'))) {
+          Alert.alert(
+            'Email Already Registered',
+            newErrors.email,
+            [{ text: 'OK' }]
+          );
+        } else if (newErrors.general) {
+          // General error - show it directly
+          Alert.alert('Error', newErrors.general, [{ text: 'OK' }]);
+        } else if (errorMessages.length === 1) {
+          // Single error - show it directly
+          Alert.alert('Validation Error', errorMessages[0], [{ text: 'OK' }]);
+        } else {
+          // Multiple errors - show summary
+          const errorSummary = errorMessages.slice(0, 3).join('\n• ');
+          const remainingCount = errorMessages.length > 3 ? `\n...and ${errorMessages.length - 3} more error(s)` : '';
+          Alert.alert(
+            'Validation Errors',
+            `Please fix the following:\n• ${errorSummary}${remainingCount}`,
+            [{ text: 'OK' }]
+          );
+        }
+      }
+    } else if (error?.message) {
+      // If no field-specific errors but has general message, show it
+      Alert.alert('Error', error.message, [{ text: 'OK' }]);
     }
   };
 
@@ -166,6 +289,9 @@ export default function SignUpScreen() {
     
     const passwordError = validatePassword(password);
     if (passwordError) newErrors.password = passwordError;
+    
+    const confirmPasswordError = validateConfirmPassword(password, confirmPassword);
+    if (confirmPasswordError) newErrors.confirmPassword = confirmPasswordError;
     
     const pinError = validatePinCode(pinCode);
     if (pinError) newErrors.pinCode = pinError;
@@ -212,24 +338,60 @@ export default function SignUpScreen() {
         });
       } else {
         setLoading(false);
-        // Handle backend validation errors from message
-        if (result.message) {
-          // Try to parse error message or handle it
-          handleBackendErrors({ message: result.message });
+        console.log('Registration failed, result:', result);
+        // Handle backend validation errors
+        // Check if errorData has content (not just empty object)
+        if (result.errorData && Object.keys(result.errorData).length > 0) {
+          // Pass full error data including field information
+          console.log('Handling errorData:', result.errorData);
+          handleBackendErrors(result.errorData);
+        } else if (result.errors && result.errors.length > 0) {
+          // Handle validation errors array
+          console.log('Handling errors array:', result.errors);
+          handleBackendErrors({ errors: result.errors, message: result.message });
+        } else if (result.message) {
+          // Handle single error message
+          console.log('Handling single message:', result.message);
+          // Check if message contains "already registered" to determine field
+          if (result.message.toLowerCase().includes('already registered') || 
+              result.message.toLowerCase().includes('already exists')) {
+            // This is likely a duplicate email error
+            handleBackendErrors({ 
+              message: result.message,
+              field: 'email'
+            });
+          } else {
+            handleBackendErrors({ message: result.message });
+          }
         } else {
           Alert.alert('Error', result.message || 'Registration failed');
         }
       }
     } catch (error: any) {
       setLoading(false);
-      // Handle API errors
+      console.error('Registration error (catch block):', error);
+      console.error('Error response:', error?.response);
+      console.error('Error message:', error?.message);
+      // Handle API errors - check if error has response data
       if (error?.response?.data) {
         // Backend validation errors are in error.response.data
+        console.log('Handling error.response.data:', error.response.data);
         handleBackendErrors(error.response.data);
       } else if (error?.message) {
-        // Network or other errors
-        handleBackendErrors({ message: error.message });
+        // Network or other errors - try to extract field if it's a known error
+        const errorMessage = error.message;
+        console.log('Handling error.message:', errorMessage);
+        if (errorMessage.includes('already registered') || errorMessage.includes('already exists')) {
+          // This is likely a duplicate email error
+          handleBackendErrors({ 
+            message: errorMessage,
+            field: 'email'
+          });
+        } else {
+          handleBackendErrors({ message: errorMessage });
+        }
       } else {
+        console.log('No error message found, showing generic error');
         Alert.alert('Error', 'Registration failed. Please try again.');
       }
     }
@@ -385,6 +547,10 @@ export default function SignUpScreen() {
               onChangeText={(text) => {
                 setPassword(text);
                 clearError('password');
+                // Clear confirm password error if password changes
+                if (confirmPassword && text === confirmPassword) {
+                  clearError('confirmPassword');
+                }
               }}
               secureTextEntry={!showPassword}
               autoCapitalize="none"
@@ -402,6 +568,46 @@ export default function SignUpScreen() {
             </TouchableOpacity>
           </View>
           {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+          {!errors.password && (
+            <Text style={styles.helperText}>
+              Password must contain at least one uppercase letter, one lowercase letter, and one number
+            </Text>
+          )}
+        </View>
+
+        {/* Confirm Password Input */}
+        <View style={styles.inputContainer}>
+          <Text style={styles.inputLabel}>Confirm Password</Text>
+          <View style={[styles.passwordContainer, errors.confirmPassword && styles.inputError]}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Confirm your password"
+              placeholderTextColor="#9CA3AF"
+              value={confirmPassword}
+              onChangeText={(text) => {
+                setConfirmPassword(text);
+                clearError('confirmPassword');
+                // Validate match in real-time
+                if (text && password && text !== password) {
+                  setErrors(prev => ({ ...prev, confirmPassword: 'Passwords do not match' }));
+                }
+              }}
+              secureTextEntry={!showConfirmPassword}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+              style={styles.eyeIcon}
+            >
+              <Ionicons
+                name={showConfirmPassword ? 'eye-off' : 'eye'}
+                size={24}
+                color="#9CA3AF"
+              />
+            </TouchableOpacity>
+          </View>
+          {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
         </View>
 
         {/* PIN Code Input */}

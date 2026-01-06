@@ -64,8 +64,6 @@ export default function ClinicOwnerPatientProfileScreen() {
   const [duration, setDuration] = useState('45');
   const [treatmentNotes, setTreatmentNotes] = useState('');
   const [progressNotes, setProgressNotes] = useState('');
-  const [painLevel, setPainLevel] = useState('');
-  const [showPainLevelModal, setShowPainLevelModal] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   
@@ -398,7 +396,6 @@ export default function ClinicOwnerPatientProfileScreen() {
     setDuration('45');
     setTreatmentNotes('');
     setProgressNotes('');
-    setPainLevel('');
     setSelectedPhotos([]);
     setSelectedVideos([]);
     // Clear errors
@@ -512,9 +509,6 @@ export default function ClinicOwnerPatientProfileScreen() {
       };
 
       // Optional fields
-      if (painLevel) {
-        sessionData.painLevel = parseInt(painLevel);
-      }
       if (patient?.sessionFee) {
         sessionData.feeCharged = patient.sessionFee;
       }
@@ -827,12 +821,6 @@ export default function ClinicOwnerPatientProfileScreen() {
   };
 
 
-  const painLevels = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
-
-  const handlePainLevelSelect = (level: string) => {
-    setPainLevel(level);
-    setShowPainLevelModal(false);
-  };
 
 
 
@@ -893,7 +881,6 @@ export default function ClinicOwnerPatientProfileScreen() {
         videos: videosCount,
         photoUrls: photoUrls,
         videoUrls: videoUrls,
-        painLevel: session.painLevel,
         fee: session.feeCharged,
         nextAppointment: session.nextAppointment
       };
@@ -1016,7 +1003,18 @@ export default function ClinicOwnerPatientProfileScreen() {
             </View>
           ) : (
             sessionHistory.map((session) => (
-            <View key={session.id} style={styles.sessionCard}>
+            <TouchableOpacity 
+              key={session.id} 
+              style={styles.sessionCard}
+              onPress={() => {
+                // Make entire card clickable if it has media
+                if (session.photos > 0 || session.videos > 0) {
+                  handleViewSessionMedia(session);
+                }
+              }}
+              activeOpacity={(session.photos > 0 || session.videos > 0) ? 0.7 : 1}
+              disabled={!(session.photos > 0 || session.videos > 0)}
+            >
               <View style={styles.sessionCardHeader}>
                 <Text style={styles.sessionTitle}>
                   Session #{session.sessionNumber} - {session.date}
@@ -1034,22 +1032,18 @@ export default function ClinicOwnerPatientProfileScreen() {
               
               {(session.photos > 0 || session.videos > 0) && (
                 <View style={styles.mediaButtons}>
-                  {(session.photos > 0 || session.videos > 0) && (
-                    <TouchableOpacity 
-                      style={styles.viewMediaButton}
-                      onPress={() => handleViewSessionMedia(session)}
-                    >
-                      <Ionicons name="images" size={16} color="white" />
-                      <Text style={styles.mediaButtonText}>
-                        {session.photos > 0 && `${session.photos} Photo${session.photos > 1 ? 's' : ''}`}
-                        {session.photos > 0 && session.videos > 0 && ' • '}
-                        {session.videos > 0 && `${session.videos} Video${session.videos > 1 ? 's' : ''}`}
-                      </Text>
-                    </TouchableOpacity>
-                  )}
+                  <View style={styles.mediaInfo}>
+                    <Ionicons name="images" size={16} color="#6B46C1" />
+                    <Text style={styles.mediaInfoText}>
+                      {session.photos > 0 && `${session.photos} Photo${session.photos > 1 ? 's' : ''}`}
+                      {session.photos > 0 && session.videos > 0 && ' • '}
+                      {session.videos > 0 && `${session.videos} Video${session.videos > 1 ? 's' : ''}`}
+                    </Text>
+                    <Ionicons name="chevron-forward" size={16} color="#9CA3AF" style={{ marginLeft: 'auto' }} />
+                  </View>
                 </View>
               )}
-            </View>
+            </TouchableOpacity>
             ))
           )}
         </View>
@@ -1172,7 +1166,7 @@ export default function ClinicOwnerPatientProfileScreen() {
                 <Text style={styles.inputLabel}>Progress Notes</Text>
                 <TextInput
                   style={[styles.input, styles.textArea, sessionErrors.progressNotes && styles.inputError]}
-                  placeholder="Patient's progress, improvements, pain levels..."
+                  placeholder="Patient's progress, improvements..."
                   placeholderTextColor="#9CA3AF"
                   value={progressNotes}
                   onChangeText={(text) => {
@@ -1243,20 +1237,6 @@ export default function ClinicOwnerPatientProfileScreen() {
                 )}
               </View>
 
-              {/* Pain Level */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>Pain Level (1-10)</Text>
-                <TouchableOpacity 
-                  style={styles.dropdownContainer}
-                  onPress={() => setShowPainLevelModal(true)}
-                >
-                  <Text style={[styles.dropdownText, painLevel ? styles.dropdownTextSelected : styles.dropdownTextPlaceholder]}>
-                    {painLevel || "Select"}
-                  </Text>
-                  <Ionicons name="chevron-down" size={20} color="#9CA3AF" />
-                </TouchableOpacity>
-              </View>
-
               {/* Action Buttons */}
               <View style={styles.buttonContainer}>
                 <TouchableOpacity 
@@ -1276,39 +1256,6 @@ export default function ClinicOwnerPatientProfileScreen() {
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
               </View>
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {/* Pain Level Modal */}
-      <Modal
-        visible={showPainLevelModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowPainLevelModal(false)}
-      >
-        <View style={styles.painLevelModalOverlay}>
-          <View style={styles.painLevelModal}>
-            <View style={styles.painLevelModalHeader}>
-              <Text style={styles.painLevelModalTitle}>Select Pain Level</Text>
-              <TouchableOpacity onPress={() => setShowPainLevelModal(false)}>
-                <Ionicons name="close" size={24} color="#374151" />
-              </TouchableOpacity>
-            </View>
-            <ScrollView style={styles.painLevelModalContent}>
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((level) => (
-                <TouchableOpacity
-                  key={level}
-                  style={styles.painLevelOption}
-                  onPress={() => {
-                    setPainLevel(level.toString());
-                    setShowPainLevelModal(false);
-                  }}
-                >
-                  <Text style={styles.painLevelOptionText}>{level}</Text>
-                </TouchableOpacity>
-              ))}
             </ScrollView>
           </View>
         </View>
@@ -1848,9 +1795,22 @@ const styles = StyleSheet.create({
     color: '#374151',
   },
   mediaButtons: {
-    flexDirection: 'row',
     marginTop: 12,
+  },
+  mediaInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
     gap: 8,
+  },
+  mediaInfoText: {
+    color: '#6B46C1',
+    fontSize: 14,
+    fontWeight: '600',
+    flex: 1,
   },
   photoButton: {
     flexDirection: 'row',
@@ -2070,72 +2030,6 @@ const styles = StyleSheet.create({
   cancelButtonText: {
     color: '#3B82F6',
     fontSize: 16,
-    fontWeight: '600',
-  },
-  // Pain Level Modal Styles
-  painLevelModalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  painLevelModal: {
-    backgroundColor: 'white',
-    borderRadius: 12,
-    margin: 20,
-    maxHeight: '60%',
-    width: '80%',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.25,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  painLevelModalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  painLevelModalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  painLevelModalContent: {
-    maxHeight: 300,
-  },
-  painLevelOption: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-    alignItems: 'center',
-  },
-  painLevelOptionText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  painLevelItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  painLevelItemSelected: {
-    backgroundColor: '#EBF4FF',
-  },
-  painLevelItemText: {
-    fontSize: 16,
-    color: '#374151',
-    textAlign: 'center',
-  },
-  painLevelItemTextSelected: {
-    color: '#3B82F6',
     fontWeight: '600',
   },
   // Date Picker Modal Styles

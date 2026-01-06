@@ -31,7 +31,12 @@ class SubscriptionService {
   async getPlans() {
     try {
       const response = await apiService.get(`${this.baseURL}/subscription/plans`);
-      return response;
+      // Return response with clinicSubscriptionInfo if available
+      return {
+        success: response.success,
+        data: response.data,
+        clinicSubscriptionInfo: response.clinicSubscriptionInfo || null
+      };
     } catch (error) {
       console.error('Get plans error:', error);
       throw error;
@@ -50,7 +55,12 @@ class SubscriptionService {
       return response;
     } catch (error) {
       console.error('Create payment order error:', error);
-      throw error;
+      // Return proper error message instead of throwing
+      const errorMessage = error?.response?.data?.message || 
+                          error?.message || 
+                          error?.toString() || 
+                          'Failed to create payment order. Please try again.';
+      throw new Error(errorMessage);
     }
   }
 
